@@ -1,0 +1,8 @@
+.env
+venv/
+chroma_db/
+faiss_index/
+retrieved_contexts/
+context.txt
+__pycache__/
+*.pyc
