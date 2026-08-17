@@ -3,7 +3,7 @@ import axios from "axios";
 import { API_BASE_URL } from "../config/api";
 
 const formatMathText = (text) => {
-  if (!text) return "";
+  if (!text) return "Sorry, I cannot find information regarding this question in the uploaded documents.";
   let formatted = text;
 
   // Convert LaTeX fractions and square roots
