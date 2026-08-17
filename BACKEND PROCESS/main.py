@@ -482,20 +482,27 @@ async def upload_pdf(
     with open(rag_file_path, "wb") as rag_buffer:
         rag_buffer.write(content)
 
-    # Trigger non-blocking ingest on RAG service
+    # Trigger ingest on RAG service - wait for it to complete
+    ingest_success = False
     try:
-        requests.post(
+        resp = requests.post(
             "http://127.0.0.1:8001/api/ingest",
             json={"filename": pdf.filename},
-            timeout=0.5
+            timeout=60
         )
-    except Exception:
-        pass
+        if resp.status_code == 200:
+            ingest_success = True
+            print(f"✅ RAG ingest success for {pdf.filename}: {resp.json()}")
+        else:
+            print(f"⚠️ RAG ingest failed for {pdf.filename}: {resp.status_code} {resp.text}")
+    except Exception as e:
+        print(f"⚠️ RAG ingest error for {pdf.filename}: {e}")
 
     return {
         "status": True,
-        "message": "PDF Uploaded Successfully",
-        "filename": pdf.filename
+        "message": "PDF Uploaded and Processed Successfully" if ingest_success else "PDF Uploaded but RAG processing may be pending",
+        "filename": pdf.filename,
+        "ingested": ingest_success
     }
 
 
