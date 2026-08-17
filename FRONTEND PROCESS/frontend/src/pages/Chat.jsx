@@ -382,8 +382,18 @@ while (true) {
 
     return updated;
 
-  });
+}
 
+if (!aiAnswer || !aiAnswer.trim()) {
+  aiAnswer = "Sorry, I cannot find information regarding this question in the uploaded documents.";
+  setMessages((prev) => {
+    const updated = [...prev];
+    updated[updated.length - 1] = {
+      sender: "AI",
+      text: aiAnswer
+    };
+    return updated;
+  });
 }
 
 // Save AI answer after streaming finishes
