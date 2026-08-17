@@ -373,7 +373,12 @@ Answer:"""
                 full_output += chunk_text
 
                 if not is_fallback:
-                    if "sorry, the provided document is not" in full_output.lower() or "not available in the uploaded" in full_output.lower():
+                    if (
+                        "cannot find information" in full_output.lower()
+                        or "not in the uploaded" in full_output.lower()
+                        or "not available in the uploaded" in full_output.lower()
+                        or "sorry" in full_output.lower()[:30]
+                    ):
                         is_fallback = True
                         yield FALLBACK_MESSAGE
                         return
