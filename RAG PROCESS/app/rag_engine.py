@@ -262,36 +262,8 @@ Answer:"""
         return cleaned
 
     def _is_query_supported_by_context(self, query: str, context_text: str) -> bool:
-        """Verify if retrieved context contains relevant topic keywords from user query."""
-        if not context_text or not context_text.strip():
-            return False
-
-        stop_words = {
-            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-            "have", "has", "had", "do", "does", "did", "to", "from", "in", "out",
-            "on", "off", "over", "under", "again", "further", "then", "once",
-            "here", "there", "when", "where", "why", "how", "all", "any", "both",
-            "each", "few", "more", "most", "other", "some", "such", "no", "nor",
-            "not", "only", "own", "same", "so", "than", "too", "very", "can",
-            "will", "just", "should", "now", "of", "and", "or", "give", "me",
-            "what", "which", "find", "show", "tell", "explain", "defined"
-        }
-
-        import re
-        query_words = set(re.findall(r'\b[a-zA-Z0-9_-]{3,}\b', query.lower()))
-        keywords = [w for w in query_words if w not in stop_words]
-
-        if not keywords:
-            return True
-
-        context_lower = context_text.lower()
-        matches = [w for w in keywords if w in context_lower]
-
-        if not matches:
-            print(f"[RAG] Key topic words {keywords} not found in retrieved context.")
-            return False
-
-        return True
+        """Verify if retrieved context contains valid text."""
+        return bool(context_text and context_text.strip())
 
     def query(
         self,
