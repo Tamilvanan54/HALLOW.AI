@@ -380,8 +380,7 @@ while (true) {
       text: aiAnswer
     };
 
-    return updated;
-
+  });
 }
 
 if (!aiAnswer || !aiAnswer.trim()) {
