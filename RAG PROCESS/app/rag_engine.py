@@ -345,8 +345,11 @@ Answer:"""
         self,
         query_text: str
     ) -> Generator[str, None, None]:
+        print(f"[STREAM] Starting query_stream for: {query_text}")
+
         corrected = self._check_feedback_correction(query_text)
         if corrected:
+            print(f"[STREAM] Feedback correction found, returning corrected answer")
             yield corrected
             return
 
@@ -355,9 +358,20 @@ Answer:"""
             k=3
         )
 
-        if not docs or not context_text.strip() or not self._is_query_supported_by_context(query_text, context_text):
+        print(f"[STREAM] Docs found: {len(docs) if docs else 0}")
+        print(f"[STREAM] Context length: {len(context_text) if context_text else 0}")
+
+        if not docs or not context_text.strip():
+            print(f"[STREAM] No docs or empty context -> fallback")
             yield FALLBACK_MESSAGE
             return
+
+        if not self._is_query_supported_by_context(query_text, context_text):
+            print(f"[STREAM] Keyword check failed -> fallback")
+            yield FALLBACK_MESSAGE
+            return
+
+        print(f"[STREAM] Building prompt and starting LLM stream...")
 
         formatted_prompt = self._build_prompt(
             query_text,
@@ -365,13 +379,17 @@ Answer:"""
         )
 
         full_output = ""
+        chunk_count = 0
         try:
             for chunk in self.llm.stream(formatted_prompt):
                 chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
                 full_output += chunk_text
+                chunk_count += 1
                 yield self._clean_formatting(chunk_text)
 
+            print(f"[STREAM] LLM streaming complete: {chunk_count} chunks, {len(full_output)} chars")
+
         except Exception as e:
-            print(f"[RAG] Streaming error: {e}")
+            print(f"[STREAM] Streaming error after {chunk_count} chunks: {e}")
             if not full_output.strip():
                 yield FALLBACK_MESSAGE
