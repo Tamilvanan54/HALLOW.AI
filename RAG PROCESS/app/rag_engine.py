@@ -18,10 +18,10 @@ class RAGEngine:
         self.options = {
             "num_gpu": 99,
             "temperature": 0.1,
-            "num_predict": 180,
+            "num_predict": 150,
             "num_ctx": 1024,
             "num_thread": 8,
-            "repeat_penalty": 1.2
+            "repeat_penalty": 1.15
         }
 
         self.default_kwargs = {
@@ -68,7 +68,7 @@ class RAGEngine:
     def _get_context_and_docs(
         self,
         query,
-        k=4
+        k=3
     ):
         try:
             docs = self.vectorstore.similarity_search(
@@ -304,7 +304,7 @@ Answer:"""
 
         context_text, docs = self._get_context_and_docs(
             query_text,
-            k=4
+            k=3
         )
 
         if not docs or not context_text.strip() or not self._is_query_supported_by_context(query_text, context_text):
@@ -352,7 +352,7 @@ Answer:"""
 
         context_text, docs = self._get_context_and_docs(
             query_text,
-            k=4
+            k=3
         )
 
         if not docs or not context_text.strip() or not self._is_query_supported_by_context(query_text, context_text):
