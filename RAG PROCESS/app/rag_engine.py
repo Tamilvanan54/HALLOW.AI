@@ -366,27 +366,12 @@ Answer:"""
 
         full_output = ""
         try:
-            stream_chunks = []
-            is_fallback = False
             for chunk in self.llm.stream(formatted_prompt):
                 chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
                 full_output += chunk_text
-
-                if not is_fallback:
-                    if (
-                        "cannot find information" in full_output.lower()
-                        or "not in the uploaded" in full_output.lower()
-                        or "not available in the uploaded" in full_output.lower()
-                        or "sorry" in full_output.lower()[:30]
-                    ):
-                        is_fallback = True
-                        yield FALLBACK_MESSAGE
-                        return
-                    else:
-                        yield self._clean_formatting(chunk_text)
+                yield self._clean_formatting(chunk_text)
 
         except Exception as e:
             print(f"[RAG] Streaming error: {e}")
-            yield FALLBACK_MESSAGE
-            print(f"[RAG] Streaming error: {e}")
-            yield FALLBACK_MESSAGE
+            if not full_output.strip():
+                yield FALLBACK_MESSAGE
