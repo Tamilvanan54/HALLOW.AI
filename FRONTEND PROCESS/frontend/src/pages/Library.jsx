@@ -14,6 +14,9 @@ export default function Library() {
   const [pdfs, setPdfs] =
     useState([]);
 
+  const [uploading, setUploading] =
+    useState(false);
+
   useEffect(() => {
 
     fetchPDFs();
@@ -42,7 +45,10 @@ export default function Library() {
 
   const uploadPDF = async () => {
 
-    if (!file) return;
+    if (!file) {
+      alert("Please select a PDF file first!");
+      return;
+    }
 
     const formData =
       new FormData();
@@ -53,6 +59,8 @@ export default function Library() {
     );
 
     try {
+
+      setUploading(true);
 
       await axios.post(
         `${API_BASE_URL}/upload-pdf`,
@@ -65,13 +73,19 @@ export default function Library() {
         }
       );
 
-      fetchPDFs();
+      await fetchPDFs();
 
       setFile(null);
+      alert("PDF Uploaded and processed successfully!");
 
     } catch (error) {
 
       console.error(error);
+      alert("Failed to upload PDF. Please make sure the backend is running.");
+
+    } finally {
+
+      setUploading(false);
 
     }
   };
@@ -157,9 +171,10 @@ export default function Library() {
 
           <button
             onClick={uploadPDF}
+            disabled={uploading}
             style={{
               background:
-                "#2563eb",
+                uploading ? "#6b7280" : "#2563eb",
               color: "white",
               border: "none",
               padding:
@@ -167,10 +182,10 @@ export default function Library() {
               borderRadius:
                 "10px",
               cursor:
-                "pointer",
+                uploading ? "not-allowed" : "pointer",
             }}
           >
-            Upload PDF
+            {uploading ? "Uploading & Processing..." : "Upload PDF"}
           </button>
 
           {file && (
