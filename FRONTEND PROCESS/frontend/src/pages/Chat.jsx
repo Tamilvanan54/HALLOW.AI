@@ -380,6 +380,8 @@ while (true) {
       text: aiAnswer
     };
 
+    return updated;
+
   });
 }
 
