@@ -17,11 +17,13 @@ class RAGEngine:
 
         self.options = {
             "num_gpu": 99,
-            "temperature": 0.1,
-            "num_predict": 150,
+            "temperature": 0.05,
+            "num_predict": 120,
             "num_ctx": 1024,
             "num_thread": 8,
-            "repeat_penalty": 1.15
+            "repeat_penalty": 1.15,
+            "top_k": 20,
+            "top_p": 0.8
         }
 
         self.default_kwargs = {
@@ -45,7 +47,7 @@ class RAGEngine:
             res = requests.get(
                 "http://127.0.0.1:8000/feedback-correction",
                 params={"question": query_text},
-                timeout=0.3
+                timeout=0.08
             )
             if res.status_code == 200:
                 data = res.json()
@@ -68,7 +70,7 @@ class RAGEngine:
     def _get_context_and_docs(
         self,
         query,
-        k=3
+        k=2
     ):
         try:
             docs = self.vectorstore.similarity_search(
@@ -304,7 +306,7 @@ Answer:"""
 
         context_text, docs = self._get_context_and_docs(
             query_text,
-            k=3
+            k=2
         )
 
         if not docs or not context_text.strip() or not self._is_query_supported_by_context(query_text, context_text):
@@ -355,7 +357,7 @@ Answer:"""
 
         context_text, docs = self._get_context_and_docs(
             query_text,
-            k=3
+            k=2
         )
 
         print(f"[STREAM] Docs found: {len(docs) if docs else 0}")

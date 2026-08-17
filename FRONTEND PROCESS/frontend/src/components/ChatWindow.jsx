@@ -3,7 +3,8 @@ import axios from "axios";
 import { API_BASE_URL } from "../config/api";
 
 const formatMathText = (text) => {
-  if (!text || text === "No answer received.") return "Sorry, I cannot find information regarding this question in the uploaded documents.";
+  if (!text || !text.trim()) return "";
+  if (text === "No answer received.") return "Sorry, I cannot find information regarding this question in the uploaded documents.";
   let formatted = text;
 
   // Convert LaTeX fractions and square roots
@@ -241,10 +242,13 @@ setTimeout(() => {
                   "relative",
               }}
             >
-              {msg.sender === "AI" ? formatMathText(msg.text) : msg.text}
+              {msg.sender === "AI" ? (
+                msg.text ? formatMathText(msg.text) : (
+                  <span style={{ color: "#9ca3af", fontStyle: "italic" }}>Thinking...</span>
+                )
+              ) : msg.text}
 
-              {msg.sender ===
-                "AI" && (
+              {msg.sender === "AI" && msg.text && (
 
                 <div
                   style={{

@@ -160,8 +160,10 @@ async def lifespan(app_instance: FastAPI):
                 "keep_alive": "24h",
                 "options": {
                     "num_gpu": 99,
-                    "temperature": 0.1,
-                    "num_predict": 150,
+                    "temperature": 0.05,
+                    "num_predict": 120,
+                    "top_k": 20,
+                    "top_p": 0.8
                 }
             }
         )
