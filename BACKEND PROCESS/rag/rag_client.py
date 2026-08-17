@@ -32,5 +32,5 @@ def ask_rag(question: str, model_name: str = "qwen3:8b"):
     except Exception as e:
         print("RAG ERROR =", str(e))
         return {
-            "answer": "Sorry, the provided document is not in uploaded document or rag"
+            "answer": "Sorry, I cannot find information regarding this question in the uploaded documents."
         }
