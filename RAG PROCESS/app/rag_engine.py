@@ -45,7 +45,7 @@ class RAGEngine:
             res = requests.get(
                 "http://127.0.0.1:8000/feedback-correction",
                 params={"question": query_text},
-                timeout=2
+                timeout=0.3
             )
             if res.status_code == 200:
                 data = res.json()
