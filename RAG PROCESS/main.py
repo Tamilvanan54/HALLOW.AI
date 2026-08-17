@@ -116,14 +116,15 @@ def build_unified_vectorstore() -> Chroma | None:
             embedding_function=embeddings,
         )
 
-    docs = load_all_pdfs()
-    if not docs:
-        return None
-
     vectorstore = Chroma(
         persist_directory=CHROMA_PERSIST_DIR,
         embedding_function=embeddings,
     )
+
+    docs = load_all_pdfs()
+    if not docs:
+        print("ℹ️ No PDF documents found. RAG Engine initialized with empty knowledge base.")
+        return vectorstore
 
     batch_size = 100
     total_docs = len(docs)
