@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { API_BASE_URL, RAG_BASE_URL } from "../config/api";
 
 import MobileSidebar from "../components/MobileSidebar";
 import ChatWindow from "../components/ChatWindow";
@@ -134,7 +135,7 @@ localStorage.removeItem(
 
       const response = await axios.get(
 
-        "http://127.0.0.1:8000/get-messages",
+        `${API_BASE_URL}/get-messages`,
 
         {
 
@@ -315,7 +316,7 @@ try {
 
   // Save user message
   await axios.post(
-    "http://127.0.0.1:8000/save-message",
+    `${API_BASE_URL}/save-message`,
     null,
     {
       params: {
@@ -337,7 +338,7 @@ setMessages((prev) => [
 ]);
 
 const response = await fetch(
-  "http://127.0.0.1:8001/api/query/stream",
+  `${RAG_BASE_URL}/api/query/stream`,
   {
     method: "POST",
     headers: {
@@ -388,7 +389,7 @@ while (true) {
 // Save AI answer after streaming finishes
 
 await axios.post(
-  "http://127.0.0.1:8000/save-message",
+  `${API_BASE_URL}/save-message`,
   null,
   {
     params: {

@@ -2,7 +2,7 @@ import requests
 from typing import Generator
 from langchain_ollama import ChatOllama
 
-FALLBACK_MESSAGE = "Sorry, the provided document is not in uploaded document or rag"
+FALLBACK_MESSAGE = "Sorry, I cannot find information regarding this question in the uploaded documents."
 
 class RAGEngine:
 

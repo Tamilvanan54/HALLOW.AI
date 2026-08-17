@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 export default function useChatHistory() {
 
@@ -24,7 +25,7 @@ export default function useChatHistory() {
     try {
 
       const response = await axios.get(
-        "http://127.0.0.1:8000/get-chats",
+        `${API_BASE_URL}/get-chats`,
         {
           params: {
             email
@@ -73,7 +74,7 @@ export default function useChatHistory() {
     try {
 
       const response = await axios.post(
-        "http://127.0.0.1:8000/save-chat",
+        `${API_BASE_URL}/save-chat`,
         null,
         {
           params: {
@@ -146,7 +147,7 @@ export default function useChatHistory() {
     try {
 
       await axios.delete(
-        "http://127.0.0.1:8000/delete-chat",
+        `${API_BASE_URL}/delete-chat`,
         {
           params: {
             chat_id: id
@@ -183,7 +184,7 @@ export default function useChatHistory() {
       console.log("PIN CLICKED:", id);
 
       const response = await axios.put(
-        "http://127.0.0.1:8000/pin-chat",
+        `${API_BASE_URL}/pin-chat`,
         null,
         {
           params: {

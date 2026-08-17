@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 export default function Users() {
 
@@ -21,7 +22,7 @@ export default function Users() {
 
       const response =
         await axios.get(
-          "http://127.0.0.1:8000/users"
+          `${API_BASE_URL}/users`
         );
 
       setUsers(
@@ -50,7 +51,7 @@ export default function Users() {
     try {
 
       await axios.delete(
-        `http://127.0.0.1:8000/delete-user/${userId}`
+        `${API_BASE_URL}/delete-user/${userId}`
       );
 
       fetchUsers();

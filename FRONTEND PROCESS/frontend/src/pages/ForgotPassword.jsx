@@ -1,6 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../config/api";
 
 export default function ForgotPassword() {
 
@@ -29,7 +30,7 @@ export default function ForgotPassword() {
 
       const response =
         await axios.post(
-          "http://127.0.0.1:8000/forgot-password",
+          `${API_BASE_URL}/forgot-password`,
           null,
           {
             params: {

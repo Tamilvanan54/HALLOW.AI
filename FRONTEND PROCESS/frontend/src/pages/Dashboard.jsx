@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
+import { API_BASE_URL } from "../config/api";
 
 export default function Dashboard() {
 
@@ -24,7 +25,7 @@ export default function Dashboard() {
 
       const usersResponse =
         await axios.get(
-          "http://127.0.0.1:8000/users"
+          `${API_BASE_URL}/users`
         );
 
       setTotalUsers(
@@ -33,7 +34,7 @@ export default function Dashboard() {
 
       const logsResponse =
         await axios.get(
-          "http://127.0.0.1:8000/logs"
+          `${API_BASE_URL}/logs`
         );
 
       setTotalLogins(
@@ -42,7 +43,7 @@ export default function Dashboard() {
 
       const pdfResponse =
         await axios.get(
-          "http://127.0.0.1:8000/pdfs"
+          `${API_BASE_URL}/pdfs`
         );
 
       setTotalPDFs(

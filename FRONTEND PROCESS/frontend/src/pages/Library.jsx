@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 export default function Library() {
 
@@ -25,7 +26,7 @@ export default function Library() {
 
       const response =
         await axios.get(
-          "http://127.0.0.1:8000/pdfs"
+          `${API_BASE_URL}/pdfs`
         );
 
       setPdfs(
@@ -54,7 +55,7 @@ export default function Library() {
     try {
 
       await axios.post(
-        "http://127.0.0.1:8000/upload-pdf",
+        `${API_BASE_URL}/upload-pdf`,
         formData,
         {
           headers: {
@@ -90,7 +91,7 @@ export default function Library() {
     try {
 
       await axios.delete(
-        "http://127.0.0.1:8000/delete-pdf",
+        `${API_BASE_URL}/delete-pdf`,
         {
           params: {
             filename,
@@ -242,7 +243,7 @@ export default function Library() {
   <button
     onClick={() =>
       window.open(
-        `http://127.0.0.1:8000/view-pdf/${pdf}`,
+        `${API_BASE_URL}/view-pdf/${pdf}`,
         "_blank"
       )
     }

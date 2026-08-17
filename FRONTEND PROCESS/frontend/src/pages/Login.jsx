@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 export default function Login() {
 
@@ -25,7 +26,7 @@ export default function Login() {
       setLoading(true);
 
       const response = await axios.post(
-        "http://127.0.0.1:8000/login",
+        `${API_BASE_URL}/login`,
         null,
         {
           params: {

@@ -7,6 +7,7 @@ import {
   useParams,
   useNavigate
 } from "react-router-dom";
+import { API_BASE_URL } from "../config/api";
 
 import axios from "axios";
 
@@ -70,7 +71,7 @@ export default function FeedbackDetails(){
 
       await axios.put(
 
-        `http://127.0.0.1:8000/feedbacks/${id}`
+        `${API_BASE_URL}/feedbacks/${id}`
 
       );
 
@@ -110,7 +111,7 @@ export default function FeedbackDetails(){
 
       const response = await axios.get(
 
-        `http://127.0.0.1:8000/feedbacks/${id}`
+        `${API_BASE_URL}/feedbacks/${id}`
 
       );
 
@@ -217,7 +218,7 @@ export default function FeedbackDetails(){
 
       await axios.put(
 
-        `http://127.0.0.1:8000/feedbacks/${id}`,
+        `${API_BASE_URL}/feedbacks/${id}`,
 
         {
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../config/api";
 
 
 export default function FeedbackReview(){
@@ -47,7 +48,7 @@ setLoading(true);
 
 
 const response = await axios.get(
-"http://127.0.0.1:8000/feedbacks"
+`${API_BASE_URL}/feedbacks`
 );
 
 
@@ -174,7 +175,7 @@ const handleViewFeedback = async (id) => {
   try {
 
     await axios.put(
-      `http://127.0.0.1:8000/feedback/${id}`
+      `${API_BASE_URL}/feedback/${id}`
     );
 
     await loadFeedbacks();

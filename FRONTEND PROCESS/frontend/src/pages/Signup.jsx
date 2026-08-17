@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 export default function Signup() {
 
@@ -24,7 +25,7 @@ export default function Signup() {
 
       const response =
         await axios.post(
-          "http://127.0.0.1:8000/signup",
+          `${API_BASE_URL}/signup`,
           null,
           {
             params: {
