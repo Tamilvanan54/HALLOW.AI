@@ -472,23 +472,38 @@ async def upload_pdf(
 
     with open(file_path, "wb") as buffer:
         buffer.write(content)
+    print(f"✅ Saved to backend uploads: {os.path.abspath(file_path)}")
 
-    # Save directly to RAG PROCESS data folder
-    rag_data_dir = os.path.join(os.path.dirname(__file__), "..", "RAG PROCESS", "data")
+    # Save directly to RAG PROCESS data folder using absolute path
+    backend_dir = os.path.abspath(os.path.dirname(__file__))
+    rag_data_dir = os.path.abspath(os.path.join(backend_dir, "..", "RAG PROCESS", "data"))
+    print(f"📂 RAG data directory resolved to: {rag_data_dir}")
+
     if not os.path.exists(rag_data_dir):
         os.makedirs(rag_data_dir)
+        print(f"📂 Created RAG data directory: {rag_data_dir}")
 
     rag_file_path = os.path.join(rag_data_dir, pdf.filename)
-    with open(rag_file_path, "wb") as rag_buffer:
-        rag_buffer.write(content)
+    try:
+        with open(rag_file_path, "wb") as rag_buffer:
+            rag_buffer.write(content)
+        print(f"✅ Saved to RAG data: {rag_file_path}")
+    except Exception as e:
+        print(f"❌ Failed to save to RAG data: {e}")
+        return {
+            "status": False,
+            "message": f"Failed to save PDF to RAG: {str(e)}",
+            "filename": pdf.filename
+        }
 
     # Trigger ingest on RAG service - wait for it to complete
     ingest_success = False
     try:
+        print(f"⏳ Calling RAG ingest for {pdf.filename}...")
         resp = requests.post(
             "http://127.0.0.1:8001/api/ingest",
             json={"filename": pdf.filename},
-            timeout=60
+            timeout=120
         )
         if resp.status_code == 200:
             ingest_success = True
@@ -500,7 +515,7 @@ async def upload_pdf(
 
     return {
         "status": True,
-        "message": "PDF Uploaded and Processed Successfully" if ingest_success else "PDF Uploaded but RAG processing may be pending",
+        "message": "PDF Uploaded and Processed Successfully" if ingest_success else "PDF Uploaded but RAG processing failed",
         "filename": pdf.filename,
         "ingested": ingest_success
     }
