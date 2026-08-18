@@ -144,18 +144,19 @@ class RAGEngine:
         diagram_keywords = [
             "flowchart", "flow chart", "diagram", "graph", "workflow",
             "architecture", "process", "pipeline", "tree", "chart",
-            "compare", "comparison"
+            "compare", "comparison", "figure", "tangent", "plot", "draw", "curve"
         ]
         is_diagram = any(kw in query_lower for kw in diagram_keywords)
 
-        if is_math:
-            return f"""You are Study AI Mathematics Tutor.
-Provide a clean, concise, step-by-step math solution using simple Unicode symbols (√, ±, ², ³, ∞, ℝ).
+        if is_diagram:
+            return f"""You are Study AI, an educational assistant.
+Provide a detailed explanation and construct a clear ASCII graph / diagram / flowchart inside a Markdown code block (``` ... ```) based on the context.
 
-INSTRUCTIONS:
-1. Show clear, brief step-by-step lines.
-2. End with a clear "Final Answer:" line.
-3. Keep the solution direct, concise, and without LaTeX tags.
+FORMATTING INSTRUCTIONS FOR DIAGRAMS/GRAPHS/FIGURES:
+1. Create a visual ASCII representation (using text boxes `[ ]`, coordinate points, axes `|`, `+`, `---`, or arrows `--->`, `| v`).
+2. Wrap the visual diagram inside a Markdown code block (``` ... ```).
+3. Do NOT say "Sorry, I cannot generate images" - always construct the ASCII diagram or figure illustration directly.
+4. Follow the diagram with a clear, step-by-step explanation of the concept or figure.
 
 Context:
 {context_text}
@@ -165,14 +166,14 @@ Question:
 
 Answer:"""
 
-        if is_diagram:
-            return f"""You are Study AI, an educational assistant.
-Generate a clear ASCII flowchart / process diagram / comparison graph using text boxes and arrows based on the context.
+        if is_math:
+            return f"""You are Study AI Mathematics Tutor.
+Provide a clean, concise, step-by-step math solution using simple Unicode symbols (√, ±, ², ³, ∞, ℝ).
 
-FORMATTING INSTRUCTIONS FOR DIAGRAMS/FLOWCHARTS:
-1. Create a visual ASCII flowchart or diagram using text boxes `[ Box Name ]` and directional arrows `--->` or `| v`.
-2. Wrap the diagram inside a Markdown code block (``` ... ```).
-3. Follow the diagram with a brief explanation comparing key components or steps.
+INSTRUCTIONS:
+1. Show clear, brief step-by-step lines.
+2. End with a clear "Final Answer:" line.
+3. Keep the solution direct, concise, and without LaTeX tags.
 
 Context:
 {context_text}
@@ -299,7 +300,7 @@ Answer:"""
 
             answer_text = self._clean_formatting(answer_text)
 
-            if not answer_text.strip() or "not available in the uploaded" in answer_text.lower() or "not uploaded" in answer_text.lower() or "sorry" in answer_text.lower()[:30]:
+            if not answer_text.strip() or "not available in the uploaded" in answer_text.lower() or "not uploaded in the document" in answer_text.lower():
                 answer_text = FALLBACK_MESSAGE
 
             return {
