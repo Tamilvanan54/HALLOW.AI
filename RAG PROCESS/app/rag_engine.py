@@ -278,11 +278,8 @@ Answer:"""
             k=2
         )
 
-        if not docs or not context_text.strip() or not self._is_query_supported_by_context(query_text, context_text):
-            return {
-                "answer": FALLBACK_MESSAGE,
-                "context": []
-            }
+        if not context_text or not context_text.strip():
+            context_text = "General Educational Knowledge Base"
 
         formatted_prompt = self._build_prompt(
             query_text,
@@ -332,15 +329,8 @@ Answer:"""
         print(f"[STREAM] Docs found: {len(docs) if docs else 0}")
         print(f"[STREAM] Context length: {len(context_text) if context_text else 0}")
 
-        if not docs or not context_text.strip():
-            print(f"[STREAM] No docs or empty context -> fallback")
-            yield FALLBACK_MESSAGE
-            return
-
-        if not self._is_query_supported_by_context(query_text, context_text):
-            print(f"[STREAM] Keyword check failed -> fallback")
-            yield FALLBACK_MESSAGE
-            return
+        if not context_text or not context_text.strip():
+            context_text = "General Educational Knowledge Base"
 
         print(f"[STREAM] Building prompt and starting LLM stream...")
 
