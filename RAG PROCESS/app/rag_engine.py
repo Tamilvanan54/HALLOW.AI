@@ -347,6 +347,27 @@ Answer:"""
             print(f"[STREAM] LLM streaming complete: {chunk_count} chunks, {len(full_output)} chars")
 
         except Exception as e:
-            print(f"[STREAM] Streaming error after {chunk_count} chunks: {e}")
-            if not full_output.strip():
+            print(f"[STREAM] Primary model '{self.model_name}' streaming error: {e}")
+            fallback_models = ["qwen2.5:1.5b", "qwen2.5:latest", "qwen2.5:7b", "qwen2.5", "llama3.2:3b", "llama3.2"]
+            recovered = False
+            for fb_model in fallback_models:
+                if fb_model != self.model_name:
+                    try:
+                        print(f"[STREAM] Attempting fallback model: {fb_model}")
+                        fb_llm = ChatOllama(
+                            model=fb_model,
+                            keep_alive="24h",
+                            options={"num_ctx": 1024, "num_predict": 120, "temperature": 0.05, "num_gpu": 99}
+                        )
+                        for chunk in fb_llm.stream(formatted_prompt):
+                            chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
+                            full_output += chunk_text
+                            chunk_count += 1
+                            yield chunk_text
+                        recovered = True
+                        print(f"[STREAM] Recovered using fallback model '{fb_model}'!")
+                        break
+                    except Exception as fb_err:
+                        print(f"[STREAM] Fallback model '{fb_model}' failed: {fb_err}")
+            if not recovered and not full_output.strip():
                 yield FALLBACK_MESSAGE
