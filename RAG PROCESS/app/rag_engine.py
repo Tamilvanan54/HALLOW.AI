@@ -52,8 +52,10 @@ class RAGEngine:
             if res.status_code == 200:
                 data = res.json()
                 if data.get("found") and data.get("answer"):
-                    print(f"✨ [FEEDBACK OVERRIDE]: Found corrected answer for question '{query_text}'")
-                    return data.get("answer")
+                    ans = str(data.get("answer")).strip()
+                    if ans and "cannot find information" not in ans.lower() and "sorry" not in ans.lower()[:20]:
+                        print(f"✨ [FEEDBACK OVERRIDE]: Found corrected answer for question '{query_text}'")
+                        return ans
         except Exception as e:
             print(f"⚠️ [FEEDBACK CHECK FAILED]: {e}")
         return None
