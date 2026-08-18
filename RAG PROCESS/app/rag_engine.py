@@ -147,13 +147,13 @@ class RAGEngine:
 
         if is_diagram:
             return f"""You are Study AI, an educational assistant.
-Provide a detailed explanation and construct a clear ASCII graph / diagram / flowchart inside a Markdown code block (``` ... ```) based on the context.
+Generate a clear ASCII flowchart / process diagram / comparison graph inside a Markdown code block (``` ... ```).
 
-FORMATTING INSTRUCTIONS FOR DIAGRAMS/GRAPHS/FIGURES:
-1. Create a visual ASCII representation (using text boxes `[ ]`, coordinate points, axes `|`, `+`, `---`, or arrows `--->`, `| v`).
+FORMATTING & RESPONSE INSTRUCTIONS:
+1. Construct a visual ASCII flowchart or diagram using text boxes `[ Component ]` and directional arrows `--->` or `| v`.
 2. Wrap the visual diagram inside a Markdown code block (``` ... ```).
-3. Do NOT say "Sorry, I cannot generate images" - always construct the ASCII diagram or figure illustration directly.
-4. Follow the diagram with a clear, step-by-step explanation of the concept or figure.
+3. NEVER respond with "Sorry, I cannot find information" or "I cannot draw images". ALWAYS generate the complete ASCII flowchart / diagram and explanation.
+4. Follow the diagram with a clear explanation comparing key components or steps.
 
 Context:
 {context_text}
@@ -171,6 +171,7 @@ INSTRUCTIONS:
 1. Show clear, brief step-by-step lines.
 2. End with a clear "Final Answer:" line.
 3. Keep the solution direct, concise, and without LaTeX tags.
+4. If context is general, solve the math question directly using mathematical principles.
 
 Context:
 {context_text}
@@ -180,24 +181,19 @@ Question:
 
 Answer:"""
 
-        return f"""You are Study AI, an educational study assistant. Answer the user's question using ONLY the provided retrieved context.
+        return f"""You are Study AI, an educational study assistant. Answer the user's question clearly.
 
-CRITICAL INSTRUCTIONS:
-1. If the user asks for a flow diagram, architecture, or workflow, construct a clear ASCII diagram using simple boxes and arrows based on the context (e.g., [ Nodes ] -> [ Weighted Edges ] -> [ Summation & Activation Function ] -> [ Output Neuron ]).
-2. Do NOT say "Sorry, the provided document is not uploaded" if the concept or figure description is present in the context.
-3. If the question or answer is NOT supported by the retrieved context, output ONLY:
-{FALLBACK_MESSAGE}
+INSTRUCTIONS:
+1. Use the provided context if relevant. If context is general, use educational knowledge to provide a helpful response.
+2. If the user asks for a flowchart, architecture, or workflow, construct a clear ASCII diagram using simple boxes `[ ]` and arrows `--->`.
+3. {length_instruction}
+4. Always include a relevant "Example:" section at the end of your answer.
 
 Context:
 {context_text}
 
 Question:
 {query}
-
-Instructions:
-1. Answer using ONLY the retrieved context.
-2. {length_instruction}
-3. Always include a relevant "Example:" section at the end of your answer.
 
 Answer:"""
 
