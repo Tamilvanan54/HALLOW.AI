@@ -59,28 +59,25 @@ class RAGEngine:
         return None
 
     def set_model(self, model_name: str):
-        if self.model_name != model_name:
-            print(f"[RAG] Switching LLM model from '{self.model_name}' to '{model_name}'")
-            self.model_name = model_name
+        print(f"[RAG] Using LLM model '{model_name}'")
+        self.model_name = model_name
 
-            # Optimized Llama 3.2 parameters for 0-2s TTFT and 3-5s total latency
-            if "llama" in model_name.lower():
-                llama_options = dict(self.options)
-                llama_options["num_ctx"] = 1024
-                llama_options["num_predict"] = 120
-                llama_options["temperature"] = 0.05
-                llama_options["top_k"] = 10
-                llama_kwargs = dict(self.default_kwargs)
-                llama_kwargs["options"] = llama_options
-                self.llm = ChatOllama(
-                    model=self.model_name,
-                    **llama_kwargs
-                )
-            else:
-                self.llm = ChatOllama(
-                    model=self.model_name,
-                    **self.default_kwargs
-                )
+        # Fast parameters applied to ALL models (Qwen, Llama, etc.) for 0-2s TTFT & fast latency
+        fast_options = dict(self.options)
+        fast_options["num_ctx"] = 1024
+        fast_options["num_predict"] = 120
+        fast_options["temperature"] = 0.05
+        fast_options["top_k"] = 10
+        fast_options["num_gpu"] = 99
+
+        fast_kwargs = dict(self.default_kwargs)
+        fast_kwargs["options"] = fast_options
+        fast_kwargs["keep_alive"] = "24h"
+
+        self.llm = ChatOllama(
+            model=self.model_name,
+            **fast_kwargs
+        )
 
     def _get_context_and_docs(
         self,
