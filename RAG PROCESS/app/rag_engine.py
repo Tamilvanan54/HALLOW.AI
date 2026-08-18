@@ -63,12 +63,13 @@ class RAGEngine:
             print(f"[RAG] Switching LLM model from '{self.model_name}' to '{model_name}'")
             self.model_name = model_name
 
-            # Llama 3.2 needs a larger context window and generation budget
-            # than the defaults tuned for Qwen 2.5
+            # Optimized Llama 3.2 parameters for 0-2s TTFT and 3-5s total latency
             if "llama" in model_name.lower():
                 llama_options = dict(self.options)
-                llama_options["num_ctx"] = 2048
-                llama_options["num_predict"] = 256
+                llama_options["num_ctx"] = 1024
+                llama_options["num_predict"] = 120
+                llama_options["temperature"] = 0.05
+                llama_options["top_k"] = 10
                 llama_kwargs = dict(self.default_kwargs)
                 llama_kwargs["options"] = llama_options
                 self.llm = ChatOllama(
@@ -373,7 +374,7 @@ Answer:"""
                 chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
                 full_output += chunk_text
                 chunk_count += 1
-                yield self._clean_formatting(chunk_text)
+                yield chunk_text
 
             print(f"[STREAM] LLM streaming complete: {chunk_count} chunks, {len(full_output)} chars")
 

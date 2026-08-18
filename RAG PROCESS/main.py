@@ -321,7 +321,15 @@ def handle_query_stream(request: QueryRequest):
         for chunk in engine.query_stream(request.query):
             yield chunk
 
-    return StreamingResponse(token_generator(), media_type="text/plain")
+    return StreamingResponse(
+        token_generator(),
+        media_type="text/plain",
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive"
+        }
+    )
 
 
 if __name__ == "__main__":
