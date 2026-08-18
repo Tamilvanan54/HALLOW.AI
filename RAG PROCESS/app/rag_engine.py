@@ -59,10 +59,11 @@ class RAGEngine:
         return None
 
     def set_model(self, model_name: str):
-        print(f"[RAG] Using LLM model '{model_name}'")
-        self.model_name = model_name
+        if self.model_name == model_name and hasattr(self, "llm") and self.llm:
+            return
 
-        # Fast parameters applied to ALL models (Qwen, Llama, etc.) for 0-2s TTFT & fast latency
+        print(f"[RAG] Requesting model '{model_name}'")
+
         fast_options = dict(self.options)
         fast_options["num_ctx"] = 1024
         fast_options["num_predict"] = 120
@@ -74,10 +75,34 @@ class RAGEngine:
         fast_kwargs["options"] = fast_options
         fast_kwargs["keep_alive"] = "24h"
 
-        self.llm = ChatOllama(
-            model=self.model_name,
-            **fast_kwargs
-        )
+        candidate_models = [model_name]
+        if "qwen" in model_name.lower():
+            candidate_models.extend(["qwen2.5:1.5b", "qwen2.5:latest", "qwen2.5:7b", "qwen2.5", "qwen2.5:3b"])
+        elif "llama" in model_name.lower():
+            candidate_models.extend(["llama3.2:3b", "llama3.2:latest", "llama3.2:1b", "llama3.2", "llama3"])
+
+        # Add general fallbacks
+        for fallback in ["qwen2.5:1.5b", "qwen2.5:latest", "llama3.2:3b", "llama3.2"]:
+            if fallback not in candidate_models:
+                candidate_models.append(fallback)
+
+        for candidate in candidate_models:
+            try:
+                print(f"[RAG] Initializing LLM with candidate model: '{candidate}'")
+                llm_instance = ChatOllama(
+                    model=candidate,
+                    **fast_kwargs
+                )
+                self.llm = llm_instance
+                self.model_name = candidate
+                print(f"✅ [RAG] Successfully bound active LLM model: '{candidate}'")
+                return
+            except Exception as err:
+                print(f"⚠️ [RAG] Candidate model '{candidate}' failed to load: {err}")
+
+        # Final safety fallback
+        self.model_name = model_name
+        self.llm = ChatOllama(model=model_name, **fast_kwargs)
 
     def _get_context_and_docs(
         self,
