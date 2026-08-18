@@ -141,6 +141,13 @@ class RAGEngine:
         else:
             length_instruction = "Provide a clear, direct response with key points and a concise example."
 
+        diagram_keywords = [
+            "flowchart", "flow chart", "diagram", "graph", "workflow",
+            "architecture", "process", "pipeline", "tree", "chart",
+            "compare", "comparison"
+        ]
+        is_diagram = any(kw in query_lower for kw in diagram_keywords)
+
         if is_math:
             return f"""You are Study AI Mathematics Tutor.
 Provide a clean, concise, step-by-step math solution using simple Unicode symbols (√, ±, ², ³, ∞, ℝ).
@@ -149,6 +156,23 @@ INSTRUCTIONS:
 1. Show clear, brief step-by-step lines.
 2. End with a clear "Final Answer:" line.
 3. Keep the solution direct, concise, and without LaTeX tags.
+
+Context:
+{context_text}
+
+Question:
+{query}
+
+Answer:"""
+
+        if is_diagram:
+            return f"""You are Study AI, an educational assistant.
+Generate a clear ASCII flowchart / process diagram / comparison graph using text boxes and arrows based on the context.
+
+FORMATTING INSTRUCTIONS FOR DIAGRAMS/FLOWCHARTS:
+1. Create a visual ASCII flowchart or diagram using text boxes `[ Box Name ]` and directional arrows `--->` or `| v`.
+2. Wrap the diagram inside a Markdown code block (``` ... ```).
+3. Follow the diagram with a brief explanation comparing key components or steps.
 
 Context:
 {context_text}
