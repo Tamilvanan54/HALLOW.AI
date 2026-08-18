@@ -375,12 +375,13 @@ Answer:"""
 
         except Exception as e:
             print(f"[STREAM] Primary model '{self.model_name}' streaming error: {e}")
-            fallback_models = ["qwen2.5:1.5b", "qwen2.5:latest", "qwen2.5:7b", "qwen2.5", "llama3.2:3b", "llama3.2"]
+            fallback_models = ["llama3.2:3b", "llama3.2", "qwen2.5:1.5b", "qwen2.5:latest", "qwen2.5:7b", "qwen2.5"]
             recovered = False
             for fb_model in fallback_models:
                 if fb_model != self.model_name:
                     try:
                         print(f"[STREAM] Attempting fallback model: {fb_model}")
+                        time.sleep(0.3)
                         fb_llm = ChatOllama(
                             model=fb_model,
                             keep_alive="24h",
@@ -392,7 +393,7 @@ Answer:"""
                             chunk_count += 1
                             yield chunk_text
                         recovered = True
-                        print(f"[STREAM] Recovered using fallback model '{fb_model}'!")
+                        print(f"[STREAM] Successfully recovered using model '{fb_model}'!")
                         break
                     except Exception as fb_err:
                         print(f"[STREAM] Fallback model '{fb_model}' failed: {fb_err}")
