@@ -62,10 +62,24 @@ class RAGEngine:
         if self.model_name != model_name:
             print(f"[RAG] Switching LLM model from '{self.model_name}' to '{model_name}'")
             self.model_name = model_name
-            self.llm = ChatOllama(
-                model=self.model_name,
-                **self.default_kwargs
-            )
+
+            # Llama 3.2 needs a larger context window and generation budget
+            # than the defaults tuned for Qwen 2.5
+            if "llama" in model_name.lower():
+                llama_options = dict(self.options)
+                llama_options["num_ctx"] = 2048
+                llama_options["num_predict"] = 256
+                llama_kwargs = dict(self.default_kwargs)
+                llama_kwargs["options"] = llama_options
+                self.llm = ChatOllama(
+                    model=self.model_name,
+                    **llama_kwargs
+                )
+            else:
+                self.llm = ChatOllama(
+                    model=self.model_name,
+                    **self.default_kwargs
+                )
 
     def _get_context_and_docs(
         self,
