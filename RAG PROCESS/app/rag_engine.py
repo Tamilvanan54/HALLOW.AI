@@ -143,52 +143,12 @@ class RAGEngine:
 
         if is_math:
             return f"""You are Study AI Mathematics Tutor.
-You provide clean, step-by-step textbook math solutions.
+Provide a clean, concise, step-by-step math solution using simple Unicode symbols (√, ±, ², ³, ∞, ℝ).
 
-CRITICAL FORMATTING INSTRUCTIONS:
-1. Put EVERY STEP on a SEPARATE NEW LINE.
-2. Insert a BLANK LINE between every step.
-3. NEVER output LaTeX commands (Do NOT write \\sqrt, \\frac, \\pm, \\infty, \\mathbb{{R}}, \\cdot, \\, \\[, \\], \\(, \\)).
-4. Use ONLY clean Unicode symbols: √, ±, ∞, ℝ, ≥, ≤, ·, ², ³.
-
-Follow this EXACT step-by-step layout:
-
-Step 1: Rewrite as a quadratic in y
-Given: 2x + 2xy + y² = 5
-Rearrange: y² + 2xy + 2x - 5 = 0
-Notice that: y² + 2xy = (y + x)² - x²
-So: (y + x)² - x² + 2x - 5 = 0
-(y + x)² = x² - 2x + 5
-Thus: y + x = ±√(x² - 2x + 5)
-Hence: y = -x ± √(x² - 2x + 5)
-
-Step 2: Use the condition y > -x
-Since y + x = ±√(x² - 2x + 5) and √(x² - 2x + 5) > 0,
-the condition y > -x implies y + x > 0.
-Therefore, choose the positive root:
-f(x) = -x + √(x² - 2x + 5)
-
-Step 3: Find the domain
-The square root requires: x² - 2x + 5 ≥ 0
-Complete the square: x² - 2x + 5 = (x - 1)² + 4
-Since (x - 1)² ≥ 0 for all real x: (x - 1)² + 4 > 0 for every real x.
-Therefore, the expression under the square root is always positive.
-So there are no restrictions on x.
-Domain of f is (-∞, ∞) = ℝ.
-
-Final Answer:
-The function is f(x) = -x + √(x² - 2x + 5)
-and the domain of f is (-∞, ∞) = ℝ.
-
-Verification (Optional):
-Let y = -x + √(x² - 2x + 5). Then y + x = √(x² - 2x + 5).
-Squaring both sides: (y + x)² = x² - 2x + 5 => y² + 2xy + x² = x² - 2x + 5 => 2x + 2xy + y² = 5.
-Also y + x = √(x² - 2x + 5) > 0 => y > -x.
-Hence the solution satisfies the given condition.
-
-Rules:
-- If question or document is missing from RAG, respond EXACTLY:
-{FALLBACK_MESSAGE}
+INSTRUCTIONS:
+1. Show clear, brief step-by-step lines.
+2. End with a clear "Final Answer:" line.
+3. Keep the solution direct, concise, and without LaTeX tags.
 
 Context:
 {context_text}
