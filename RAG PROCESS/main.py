@@ -159,20 +159,21 @@ async def lifespan(app_instance: FastAPI):
             model_kwargs={
                 "keep_alive": "-1",
                 "options": {
-                    "num_gpu": 99,
+                    "num_gpu": 0,
                     "temperature": 0.0,
                     "num_predict": 160,
-                    "num_ctx": 512,
+                    "num_ctx": 384,
+                    "num_thread": 4,
                     "top_k": 10,
                     "top_p": 0.7
                 }
             }
         )
-        # Pre-warm: force-load model weights into GPU VRAM so first query has 0s cold-start
-        print("⏳ Pre-warming LLM model into GPU VRAM...")
+        # Pre-warm: force-load model weights into RAM so first query has 0s cold-start
+        print("⏳ Pre-warming LLM model into CPU RAM...")
         try:
             _warmup = engine.llm.invoke("hi")
-            print("✅ Model pre-warmed and loaded in GPU VRAM!")
+            print("✅ Model pre-warmed and loaded in CPU RAM!")
         except Exception as e:
             print(f"⚠️ Pre-warm attempt: {e} (model will load on first query)")
         print("✅ RAG Engine Microservice is ready!")

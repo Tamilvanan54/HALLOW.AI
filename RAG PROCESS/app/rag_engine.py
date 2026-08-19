@@ -16,11 +16,11 @@ class RAGEngine:
         self.model_name = model_name
 
         self.options = {
-            "num_gpu": 99,
+            "num_gpu": 0,
             "temperature": 0.0,
             "num_predict": 160,
-            "num_ctx": 512,
-            "num_thread": 8,
+            "num_ctx": 384,
+            "num_thread": 4,
             "repeat_penalty": 1.1,
             "top_k": 10,
             "top_p": 0.7
@@ -67,12 +67,12 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 512
+        fast_options["num_ctx"] = 384
         fast_options["num_predict"] = 160
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 10
         fast_options["top_p"] = 0.7
-        fast_options["num_gpu"] = 99
+        fast_options["num_gpu"] = 0
 
         fast_kwargs = dict(self.default_kwargs)
         fast_kwargs["options"] = fast_options
@@ -124,7 +124,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in docs]
-            )[:600]
+            )[:400]
 
             return context_text, docs
 
@@ -389,7 +389,7 @@ A:"""
                         fb_llm = ChatOllama(
                             model=fb_model,
                             keep_alive="-1",
-                            options={"num_ctx": 512, "num_predict": predict_tokens, "temperature": 0.0, "num_gpu": 99, "num_thread": 8}
+                            options={"num_ctx": 384, "num_predict": predict_tokens, "temperature": 0.0, "num_gpu": 0, "num_thread": 4}
                         )
                         for chunk in fb_llm.stream(formatted_prompt):
                             chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
