@@ -124,7 +124,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in docs]
-            )[:400]
+            )[:700]
 
             return context_text, docs
 
@@ -172,40 +172,49 @@ class RAGEngine:
         is_math, is_big, is_diagram = self._classify_query(query)
 
         if is_diagram:
-            return f"""Answer using ONLY the context. Draw an ASCII diagram then explain briefly.
-If NOT in context, say: {FALLBACK_MESSAGE}
+            return f"""Answer using the context. Draw an ASCII diagram inside a code block then explain briefly.
 
-Context: {context_text}
+Context:
+{context_text}
 
-Q: {query}
-A:"""
+Question: {query}
+Answer:"""
 
         if is_math:
-            return f"""Solve step-by-step using ONLY the context.
-Step 1:, Step 2:, etc. End with Final Answer:. Use Unicode symbols, no LaTeX.
+            return f"""Solve step-by-step using the context.
+Format:
+Step 1: ...
+Step 2: ...
+Final Answer: ...
+Use Unicode math symbols (√, ±, ², ³, ·) without raw LaTeX.
 
-Context: {context_text}
+Context:
+{context_text}
 
-Q: {query}
+Question: {query}
 Solution:"""
 
         if is_big:
-            return f"""Give a detailed 16-mark answer using ONLY the context.
-1. Definition 2. Key Points 3. Process 4. Example
-If NOT in context, say: {FALLBACK_MESSAGE}
+            return f"""Provide a detailed 16-mark university answer using the context.
+Structure:
+1. Definition & Core Concept
+2. Key Points / Architecture / Types
+3. Working Mechanism / Process
+4. Example: Practical example and application
 
-Context: {context_text}
+Context:
+{context_text}
 
-Q: {query}
-A:"""
+Question: {query}
+Answer:"""
 
-        return f"""Answer using ONLY the context. 4-5 lines + Example.
-If NOT in context, say: {FALLBACK_MESSAGE}
+        return f"""Answer clearly using the context. Provide 4-5 lines of explanation followed by a practical Example.
 
-Context: {context_text}
+Context:
+{context_text}
 
-Q: {query}
-A:"""
+Question: {query}
+Answer:"""
 
     def _clean_formatting(self, text: str) -> str:
         if not text:
