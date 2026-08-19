@@ -18,9 +18,9 @@ class RAGEngine:
         self.options = {
             "num_gpu": 0,
             "temperature": 0.0,
-            "num_predict": 140,
-            "num_ctx": 320,
-            "num_thread": 4,
+            "num_predict": 130,
+            "num_ctx": 240,
+            "num_thread": 8,
             "repeat_penalty": 1.05,
             "top_k": 5,
             "top_p": 0.5
@@ -67,8 +67,8 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 320
-        fast_options["num_predict"] = 140
+        fast_options["num_ctx"] = 240
+        fast_options["num_predict"] = 130
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 5
         fast_options["top_p"] = 0.5
@@ -131,7 +131,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in valid_docs]
-            )[:500]
+            )[:380]
 
             return context_text, valid_docs
 
