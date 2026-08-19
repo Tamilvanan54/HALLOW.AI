@@ -163,7 +163,7 @@ async def lifespan(app_instance: FastAPI):
             vectorstore=vectorstore, 
             model_name="qwen2.5:3b",
             model_kwargs={
-                "keep_alive": "-1",
+                "keep_alive": "24h",
                 "options": {
                     "num_gpu": 0,
                     "temperature": 0.0,

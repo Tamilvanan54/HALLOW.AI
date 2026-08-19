@@ -27,7 +27,7 @@ class RAGEngine:
         }
 
         self.default_kwargs = {
-            "keep_alive": "-1",
+            "keep_alive": "24h",
             "options": self.options
         }
         if model_kwargs:
@@ -76,7 +76,7 @@ class RAGEngine:
 
         fast_kwargs = dict(self.default_kwargs)
         fast_kwargs["options"] = fast_options
-        fast_kwargs["keep_alive"] = "-1"
+        fast_kwargs["keep_alive"] = "24h"
 
         candidate_models = [model_name]
         if "qwen" in model_name.lower():
@@ -397,7 +397,7 @@ Answer:"""
                         print(f"[STREAM] Attempting fallback model: {fb_model}")
                         fb_llm = ChatOllama(
                             model=fb_model,
-                            keep_alive="-1",
+                            keep_alive="24h",
                             options={"num_ctx": 384, "num_predict": predict_tokens, "temperature": 0.0, "num_gpu": 0, "num_thread": 4}
                         )
                         for chunk in fb_llm.stream(formatted_prompt):
