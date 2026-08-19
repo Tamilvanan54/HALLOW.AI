@@ -18,8 +18,8 @@ class RAGEngine:
         self.options = {
             "num_gpu": 99,
             "temperature": 0.0,
-            "num_predict": 180,
-            "num_ctx": 1024,
+            "num_predict": 160,
+            "num_ctx": 512,
             "num_thread": 8,
             "repeat_penalty": 1.1,
             "top_k": 10,
@@ -67,8 +67,8 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 1024
-        fast_options["num_predict"] = 180
+        fast_options["num_ctx"] = 512
+        fast_options["num_predict"] = 160
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 10
         fast_options["top_p"] = 0.7
@@ -124,7 +124,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in docs]
-            )[:1200]
+            )[:600]
 
             return context_text, docs
 
@@ -172,70 +172,40 @@ class RAGEngine:
         is_math, is_big, is_diagram = self._classify_query(query)
 
         if is_diagram:
-            return f"""You are an educational AI assistant. Answer using ONLY the retrieved context.
-Output an ASCII diagram inside a code block followed by a short explanation and a concise Example.
-If the question is NOT in the context, output EXACTLY:
-{FALLBACK_MESSAGE}
+            return f"""Answer using ONLY the context. Draw an ASCII diagram then explain briefly.
+If NOT in context, say: {FALLBACK_MESSAGE}
 
-Context:
-{context_text}
+Context: {context_text}
 
-Question:
-{query}
-
-Answer:"""
+Q: {query}
+A:"""
 
         if is_math:
-            return f"""You are a Mathematics Tutor. Solve the following problem step-by-step.
-Use ONLY the formulas and concepts from the context below.
-Rules:
-1. Write each step on its own line: Step 1:, Step 2:, Step 3:, etc.
-2. Show all working clearly.
-3. End with "Final Answer:" on a new line.
-4. Use Unicode math symbols — no LaTeX.
+            return f"""Solve step-by-step using ONLY the context.
+Step 1:, Step 2:, etc. End with Final Answer:. Use Unicode symbols, no LaTeX.
 
-Context:
-{context_text}
+Context: {context_text}
 
-Question:
-{query}
-
+Q: {query}
 Solution:"""
 
         if is_big:
-            return f"""You are an academic professor. Provide a detailed 16-mark university examination answer using ONLY the context.
-Structure:
-1. Definition & Core Concept
-2. Key Points / Architecture / Types (bullet points)
-3. Working Mechanism / Process
-4. Example: Practical example and application
-If the question is NOT in the context, output EXACTLY:
-{FALLBACK_MESSAGE}
+            return f"""Give a detailed 16-mark answer using ONLY the context.
+1. Definition 2. Key Points 3. Process 4. Example
+If NOT in context, say: {FALLBACK_MESSAGE}
 
-Context:
-{context_text}
+Context: {context_text}
 
-Question:
-{query}
+Q: {query}
+A:"""
 
-Answer:"""
+        return f"""Answer using ONLY the context. 4-5 lines + Example.
+If NOT in context, say: {FALLBACK_MESSAGE}
 
-        # DEFAULT: 4-5 lines clear explanation + practical Example strictly from context!
-        return f"""You are an educational study assistant. Answer the question using ONLY the provided context below.
-IMPORTANT: Do NOT use your own knowledge. If the answer is NOT in the context, output EXACTLY:
-{FALLBACK_MESSAGE}
+Context: {context_text}
 
-Structure:
-- 4-5 lines of clear explanation
-- Then a practical Example
-
-Context:
-{context_text}
-
-Question:
-{query}
-
-Answer:"""
+Q: {query}
+A:"""
 
     def _clean_formatting(self, text: str) -> str:
         if not text:
@@ -389,13 +359,13 @@ Answer:"""
 
         is_math, is_big, is_diagram = self._classify_query(query_text)
         if is_big:
-            predict_tokens = 350
-        elif is_math:
             predict_tokens = 280
+        elif is_math:
+            predict_tokens = 220
         elif is_diagram:
-            predict_tokens = 200
+            predict_tokens = 160
         else:
-            predict_tokens = 180
+            predict_tokens = 160
 
         full_output = ""
         chunk_count = 0
@@ -419,7 +389,7 @@ Answer:"""
                         fb_llm = ChatOllama(
                             model=fb_model,
                             keep_alive="24h",
-                            options={"num_ctx": 1024, "num_predict": predict_tokens, "temperature": 0.0, "num_gpu": 99, "num_thread": 8}
+                            options={"num_ctx": 512, "num_predict": predict_tokens, "temperature": 0.0, "num_gpu": 99, "num_thread": 8}
                         )
                         for chunk in fb_llm.stream(formatted_prompt):
                             chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
