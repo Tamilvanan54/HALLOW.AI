@@ -120,8 +120,9 @@ class RAGEngine:
 
             valid_docs = []
             for doc, score in results:
-                # Relevance score threshold: score < 0.98 matches document topics, >= 0.98 rejects unrelated topics
-                if score < 0.98:
+                print(f"[RAG] Query: '{query[:25]}' | Doc score: {score}")
+                # Score threshold < 0.72 strictly accepts document matches and rejects non-RAG topics
+                if score < 0.72:
                     valid_docs.append(doc)
 
             if not valid_docs:
