@@ -386,12 +386,28 @@ const typeWriterPromise = new Promise((resolve) => {
   }, 12);
 });
 
-// Read incoming network stream chunks
+// Read incoming network stream chunks with instant first-token reveal
 while (true) {
   const { done, value } = await reader.read();
   if (done) break;
   const chunk = decoder.decode(value, { stream: true });
   fullTargetText += chunk;
+
+  // Reveal first word immediately for 0ms initial TTFT
+  if (!displayedText && fullTargetText) {
+    const firstSpace = fullTargetText.search(/\s/);
+    const initialCut = (firstSpace !== -1 && firstSpace < 12) ? firstSpace + 1 : Math.min(6, fullTargetText.length);
+    displayedText = fullTargetText.slice(0, initialCut);
+    setMessages((prev) => {
+      const updated = [...prev];
+      updated[updated.length - 1] = {
+        sender: "AI",
+        text: displayedText,
+        streaming: true
+      };
+      return updated;
+    });
+  }
 }
 streamFinished = true;
 
@@ -413,18 +429,19 @@ setMessages((prev) => {
 });
 
 // Save AI answer after streaming finishes
-
-await axios.post(
-  `${API_BASE_URL}/save-message`,
-  null,
-  {
-    params: {
-      session_id: chatId,
-      sender: "AI",
-      message: aiAnswer
+if (fullTargetText && fullTargetText.trim()) {
+  await axios.post(
+    `${API_BASE_URL}/save-message`,
+    null,
+    {
+      params: {
+        session_id: chatId,
+        sender: "AI",
+        message: fullTargetText
+      }
     }
-  }
-);
+  ).catch((e) => console.error("Failed to save AI message:", e));
+}
 
 }
 catch(error){
@@ -434,13 +451,17 @@ catch(error){
     error
   );
 
-  setMessages((prev) => [
-    ...prev,
-    {
-      sender:"AI",
-      text:"Error getting response from AI"
+  setMessages((prev) => {
+    const updated = [...prev];
+    if (updated.length > 0 && updated[updated.length - 1].sender === "AI" && !updated[updated.length - 1].text) {
+      updated[updated.length - 1] = {
+        sender: "AI",
+        text: "Error getting response from AI"
+      };
+      return updated;
     }
-  ]);
+    return prev;
+  });
 }
 
 
