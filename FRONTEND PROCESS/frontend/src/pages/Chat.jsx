@@ -383,7 +383,7 @@ const typeWriterPromise = new Promise((resolve) => {
       clearInterval(ticker);
       resolve();
     }
-  }, 18);
+  }, 12);
 });
 
 // Read incoming network stream chunks

@@ -18,8 +18,8 @@ class RAGEngine:
         self.options = {
             "num_gpu": 99,
             "temperature": 0.0,
-            "num_predict": 180,
-            "num_ctx": 512,
+            "num_predict": 140,
+            "num_ctx": 384,
             "num_thread": 8,
             "repeat_penalty": 1.1,
             "top_k": 10,
@@ -47,7 +47,7 @@ class RAGEngine:
             res = requests.get(
                 "http://127.0.0.1:8000/feedback-correction",
                 params={"question": query_text},
-                timeout=0.08
+                timeout=0.03
             )
             if res.status_code == 200:
                 data = res.json()
@@ -56,8 +56,8 @@ class RAGEngine:
                     if ans and "cannot find information" not in ans.lower() and "sorry" not in ans.lower()[:20]:
                         print(f"✨ [FEEDBACK OVERRIDE]: Found corrected answer for question '{query_text}'")
                         return ans
-        except Exception as e:
-            print(f"⚠️ [FEEDBACK CHECK FAILED]: {e}")
+        except Exception:
+            pass
         return None
 
     def set_model(self, model_name: str):
@@ -67,8 +67,8 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 512
-        fast_options["num_predict"] = 180
+        fast_options["num_ctx"] = 384
+        fast_options["num_predict"] = 140
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 10
         fast_options["top_p"] = 0.7
@@ -124,7 +124,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in docs]
-            )[:650]
+            )[:480]
 
             return context_text, docs
 
@@ -378,22 +378,7 @@ Answer:"""
         full_output = ""
         chunk_count = 0
         try:
-            active_llm = ChatOllama(
-                model=self.model_name,
-                keep_alive="24h",
-                options={
-                    "num_gpu": 99,
-                    "temperature": 0.0,
-                    "num_predict": predict_tokens,
-                    "num_ctx": 512,
-                    "num_thread": 8,
-                    "repeat_penalty": 1.1,
-                    "top_k": 10,
-                    "top_p": 0.7
-                }
-            )
-
-            for chunk in active_llm.stream(formatted_prompt):
+            for chunk in self.llm.stream(formatted_prompt):
                 chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
                 full_output += chunk_text
                 chunk_count += 1
