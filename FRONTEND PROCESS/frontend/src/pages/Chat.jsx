@@ -345,62 +345,72 @@ const response = await fetch(
 );
 
 const reader = response.body.getReader();
-
 const decoder = new TextDecoder();
+let fullTargetText = "";
+let displayedText = "";
+let streamFinished = false;
 
-let aiAnswer = "";
+// Progressive word-by-word typewriter pump (renders smoothly in real-time)
+const typeWriterPromise = new Promise((resolve) => {
+  const ticker = setInterval(() => {
+    if (displayedText.length < fullTargetText.length) {
+      const remaining = fullTargetText.slice(displayedText.length);
+      const lag = remaining.length;
 
+      // Adaptive step size: word-by-word typing with speed catch-up if buffer grows
+      let step = 1;
+      if (lag > 60) {
+        step = Math.min(lag, 8);
+      } else if (lag > 25) {
+        step = Math.min(lag, 4);
+      } else {
+        const nextSpace = remaining.search(/\s/);
+        step = (nextSpace !== -1 && nextSpace < 6) ? nextSpace + 1 : Math.min(2, remaining.length);
+      }
+
+      displayedText += remaining.slice(0, step);
+
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          sender: "AI",
+          text: displayedText,
+          streaming: true
+        };
+        return updated;
+      });
+    } else if (streamFinished) {
+      clearInterval(ticker);
+      resolve();
+    }
+  }, 18);
+});
+
+// Read incoming network stream chunks
 while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  const chunk = decoder.decode(value, { stream: true });
+  fullTargetText += chunk;
+}
+streamFinished = true;
 
-  const { done, value } =
-    await reader.read();
+// Await completion of word-by-word typing animation
+await typeWriterPromise;
 
-  if (done) {
-    break;
-  }
-
-  const chunk =
-    decoder.decode(value, { stream: true });
-
-  aiAnswer += chunk;
-
-  setMessages((prev) => {
-
-    const updated = [...prev];
-
-    updated[updated.length - 1] = {
-      sender: "AI",
-      text: aiAnswer,
-      streaming: true
-    };
-
-    return updated;
-
-  });
+if (!fullTargetText || !fullTargetText.trim()) {
+  fullTargetText = "Sorry, I cannot find information regarding this question in the uploaded documents.";
 }
 
 setMessages((prev) => {
   const updated = [...prev];
   updated[updated.length - 1] = {
     sender: "AI",
-    text: aiAnswer,
+    text: fullTargetText,
     streaming: false
   };
   return updated;
 });
-
-if (!aiAnswer || !aiAnswer.trim()) {
-  aiAnswer = "Sorry, I cannot find information regarding this question in the uploaded documents.";
-  setMessages((prev) => {
-    const updated = [...prev];
-    updated[updated.length - 1] = {
-      sender: "AI",
-      text: aiAnswer,
-      streaming: false
-    };
-    return updated;
-  });
-}
 
 // Save AI answer after streaming finishes
 
