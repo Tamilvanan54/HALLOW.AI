@@ -18,12 +18,12 @@ class RAGEngine:
         self.options = {
             "num_gpu": 99,
             "temperature": 0.0,
-            "num_predict": 140,
-            "num_ctx": 384,
+            "num_predict": 130,
+            "num_ctx": 256,
             "num_thread": 8,
-            "repeat_penalty": 1.1,
-            "top_k": 10,
-            "top_p": 0.7
+            "repeat_penalty": 1.05,
+            "top_k": 5,
+            "top_p": 0.5
         }
 
         self.default_kwargs = {
@@ -47,7 +47,7 @@ class RAGEngine:
             res = requests.get(
                 "http://127.0.0.1:8000/feedback-correction",
                 params={"question": query_text},
-                timeout=0.03
+                timeout=0.02
             )
             if res.status_code == 200:
                 data = res.json()
@@ -67,11 +67,11 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 384
-        fast_options["num_predict"] = 140
+        fast_options["num_ctx"] = 256
+        fast_options["num_predict"] = 130
         fast_options["temperature"] = 0.0
-        fast_options["top_k"] = 10
-        fast_options["top_p"] = 0.7
+        fast_options["top_k"] = 5
+        fast_options["top_p"] = 0.5
         fast_options["num_gpu"] = 99
 
         fast_kwargs = dict(self.default_kwargs)
@@ -124,7 +124,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in docs]
-            )[:480]
+            )[:360]
 
             return context_text, docs
 
