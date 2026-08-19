@@ -17,13 +17,13 @@ class RAGEngine:
 
         self.options = {
             "num_gpu": 99,
-            "temperature": 0.05,
-            "num_predict": 120,
-            "num_ctx": 1024,
+            "temperature": 0.0,
+            "num_predict": 90,
+            "num_ctx": 512,
             "num_thread": 8,
-            "repeat_penalty": 1.15,
-            "top_k": 20,
-            "top_p": 0.8
+            "repeat_penalty": 1.1,
+            "top_k": 10,
+            "top_p": 0.7
         }
 
         self.default_kwargs = {
@@ -91,7 +91,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in docs]
-            )
+            )[:700]
 
             return context_text, docs
 
@@ -116,64 +116,8 @@ class RAGEngine:
             or any(symbol in query for symbol in ["=", "+", "-", "*", "/", "^", "²", "√", "(", ")"])
         )
 
-        is_short = any(word in query_lower for word in ["short", "shortly", "in short", "summary", "quick"])
-        is_brief = any(word in query_lower for word in ["brief", "briefly", "detail", "detailed", "elaborate", "explain"])
-
-        if is_short:
-            length_instruction = "Keep your answer very short, concise, and directly to the point (2-3 bullet points max)."
-        elif is_brief:
-            length_instruction = "Provide a clear, well-structured explanation using bullet points and a concise example."
-        else:
-            length_instruction = "Provide a clear, direct response with key points and a concise example."
-
         if is_math:
-            return f"""You are Study AI Mathematics Tutor.
-You provide clean, step-by-step textbook math solutions.
-
-CRITICAL FORMATTING INSTRUCTIONS:
-1. Put EVERY STEP on a SEPARATE NEW LINE.
-2. Insert a BLANK LINE between every step.
-3. NEVER output LaTeX commands (Do NOT write \\sqrt, \\frac, \\pm, \\infty, \\mathbb{{R}}, \\cdot, \\, \\[, \\], \\(, \\)).
-4. Use ONLY clean Unicode symbols: √, ±, ∞, ℝ, ≥, ≤, ·, ², ³.
-
-Follow this EXACT step-by-step layout:
-
-Step 1: Rewrite as a quadratic in y
-Given: 2x + 2xy + y² = 5
-Rearrange: y² + 2xy + 2x - 5 = 0
-Notice that: y² + 2xy = (y + x)² - x²
-So: (y + x)² - x² + 2x - 5 = 0
-(y + x)² = x² - 2x + 5
-Thus: y + x = ±√(x² - 2x + 5)
-Hence: y = -x ± √(x² - 2x + 5)
-
-Step 2: Use the condition y > -x
-Since y + x = ±√(x² - 2x + 5) and √(x² - 2x + 5) > 0,
-the condition y > -x implies y + x > 0.
-Therefore, choose the positive root:
-f(x) = -x + √(x² - 2x + 5)
-
-Step 3: Find the domain
-The square root requires: x² - 2x + 5 ≥ 0
-Complete the square: x² - 2x + 5 = (x - 1)² + 4
-Since (x - 1)² ≥ 0 for all real x: (x - 1)² + 4 > 0 for every real x.
-Therefore, the expression under the square root is always positive.
-So there are no restrictions on x.
-Domain of f is (-∞, ∞) = ℝ.
-
-Final Answer:
-The function is f(x) = -x + √(x² - 2x + 5)
-and the domain of f is (-∞, ∞) = ℝ.
-
-Verification (Optional):
-Let y = -x + √(x² - 2x + 5). Then y + x = √(x² - 2x + 5).
-Squaring both sides: (y + x)² = x² - 2x + 5 => y² + 2xy + x² = x² - 2x + 5 => 2x + 2xy + y² = 5.
-Also y + x = √(x² - 2x + 5) > 0 => y > -x.
-Hence the solution satisfies the given condition.
-
-Rules:
-- If question or document is missing from RAG, respond EXACTLY:
-{FALLBACK_MESSAGE}
+            return f"""You are a Mathematics Tutor. Solve the problem clearly and step-by-step using the context. Put each step on a separate line. Use clean Unicode symbols (√, ±, ², ³) and no LaTeX.
 
 Context:
 {context_text}
@@ -183,24 +127,13 @@ Question:
 
 Answer:"""
 
-        return f"""You are Study AI, an educational study assistant. Answer the user's question using ONLY the provided retrieved context.
-
-CRITICAL INSTRUCTIONS:
-1. If the user asks for a flow diagram, architecture, or workflow, construct a clear ASCII diagram using simple boxes and arrows based on the context (e.g., [ Nodes ] -> [ Weighted Edges ] -> [ Summation & Activation Function ] -> [ Output Neuron ]).
-2. Do NOT say "Sorry, the provided document is not uploaded" if the concept or figure description is present in the context.
-3. If the question or answer is NOT supported by the retrieved context, output ONLY:
-{FALLBACK_MESSAGE}
+        return f"""You are an educational AI assistant. Answer using ONLY the retrieved context clearly and directly.
 
 Context:
 {context_text}
 
 Question:
 {query}
-
-Instructions:
-1. Answer using ONLY the retrieved context.
-2. {length_instruction}
-3. Always include a relevant "Example:" section at the end of your answer.
 
 Answer:"""
 
