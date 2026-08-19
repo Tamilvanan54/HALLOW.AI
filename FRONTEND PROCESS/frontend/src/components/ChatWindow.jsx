@@ -244,7 +244,24 @@ setTimeout(() => {
               }}
             >
               {msg.sender === "AI" ? (
-                msg.text ? formatMathText(msg.text) : (
+                msg.text ? (
+                  <>
+                    {formatMathText(msg.text)}
+                    {msg.streaming && (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: "8px",
+                          height: "15px",
+                          marginLeft: "4px",
+                          backgroundColor: "#38bdf8",
+                          verticalAlign: "middle",
+                          borderRadius: "2px"
+                        }}
+                      />
+                    )}
+                  </>
+                ) : (
                   <span style={{ color: "#9ca3af", fontStyle: "italic" }}>Thinking...</span>
                 )
               ) : msg.text}

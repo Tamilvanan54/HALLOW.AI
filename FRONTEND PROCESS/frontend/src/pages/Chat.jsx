@@ -370,7 +370,8 @@ while (true) {
 
     updated[updated.length - 1] = {
       sender: "AI",
-      text: aiAnswer
+      text: aiAnswer,
+      streaming: true
     };
 
     return updated;
@@ -378,13 +379,24 @@ while (true) {
   });
 }
 
+setMessages((prev) => {
+  const updated = [...prev];
+  updated[updated.length - 1] = {
+    sender: "AI",
+    text: aiAnswer,
+    streaming: false
+  };
+  return updated;
+});
+
 if (!aiAnswer || !aiAnswer.trim()) {
   aiAnswer = "Sorry, I cannot find information regarding this question in the uploaded documents.";
   setMessages((prev) => {
     const updated = [...prev];
     updated[updated.length - 1] = {
       sender: "AI",
-      text: aiAnswer
+      text: aiAnswer,
+      streaming: false
     };
     return updated;
   });
