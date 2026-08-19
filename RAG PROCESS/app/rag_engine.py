@@ -52,20 +52,59 @@ class RAGEngine:
             if res.status_code == 200:
                 data = res.json()
                 if data.get("found") and data.get("answer"):
-                    print(f"✨ [FEEDBACK OVERRIDE]: Found corrected answer for question '{query_text}'")
-                    return data.get("answer")
+                    ans = str(data.get("answer")).strip()
+                    if ans and "cannot find information" not in ans.lower() and "sorry" not in ans.lower()[:20]:
+                        print(f"✨ [FEEDBACK OVERRIDE]: Found corrected answer for question '{query_text}'")
+                        return ans
         except Exception as e:
             print(f"⚠️ [FEEDBACK CHECK FAILED]: {e}")
         return None
 
     def set_model(self, model_name: str):
-        if self.model_name != model_name:
-            print(f"[RAG] Switching LLM model from '{self.model_name}' to '{model_name}'")
-            self.model_name = model_name
-            self.llm = ChatOllama(
-                model=self.model_name,
-                **self.default_kwargs
-            )
+        if self.model_name == model_name and hasattr(self, "llm") and self.llm:
+            return
+
+        print(f"[RAG] Requesting model '{model_name}'")
+
+        fast_options = dict(self.options)
+        fast_options["num_ctx"] = 1024
+        fast_options["num_predict"] = 120
+        fast_options["temperature"] = 0.05
+        fast_options["top_k"] = 10
+        fast_options["num_gpu"] = 99
+
+        fast_kwargs = dict(self.default_kwargs)
+        fast_kwargs["options"] = fast_options
+        fast_kwargs["keep_alive"] = "24h"
+
+        candidate_models = [model_name]
+        if "qwen" in model_name.lower():
+            candidate_models.extend(["qwen2.5:1.5b", "qwen2.5:latest", "qwen2.5:7b", "qwen2.5", "qwen2.5:3b"])
+        elif "llama" in model_name.lower():
+            candidate_models.extend(["llama3.2:3b", "llama3.2:latest", "llama3.2:1b", "llama3.2", "llama3"])
+
+        # Add general fallbacks
+        for fallback in ["qwen2.5:1.5b", "qwen2.5:latest", "llama3.2:3b", "llama3.2"]:
+            if fallback not in candidate_models:
+                candidate_models.append(fallback)
+
+        for candidate in candidate_models:
+            try:
+                print(f"[RAG] Initializing LLM with candidate model: '{candidate}'")
+                llm_instance = ChatOllama(
+                    model=candidate,
+                    **fast_kwargs
+                )
+                self.llm = llm_instance
+                self.model_name = candidate
+                print(f"✅ [RAG] Successfully bound active LLM model: '{candidate}'")
+                return
+            except Exception as err:
+                print(f"⚠️ [RAG] Candidate model '{candidate}' failed to load: {err}")
+
+        # Final safety fallback
+        self.model_name = model_name
+        self.llm = ChatOllama(model=model_name, **fast_kwargs)
 
     def _get_context_and_docs(
         self,
@@ -116,6 +155,24 @@ class RAGEngine:
             or any(symbol in query for symbol in ["=", "+", "-", "*", "/", "^", "²", "√", "(", ")"])
         )
 
+        diagram_keywords = [
+            "flowchart", "flow chart", "diagram", "graph", "workflow",
+            "architecture", "process", "pipeline", "tree", "chart",
+            "compare", "comparison", "figure", "tangent", "plot", "draw", "curve"
+        ]
+        is_diagram = any(kw in query_lower for kw in diagram_keywords)
+
+        if is_diagram:
+            return f"""You are an educational AI. Generate a clear ASCII diagram inside a code block (``` ... ```) followed by a concise explanation.
+
+Context:
+{context_text}
+
+Question:
+{query}
+
+Answer:"""
+
         if is_math:
             return f"""You are a Mathematics Tutor. Solve the problem clearly and step-by-step using the context. Put each step on a separate line. Use clean Unicode symbols (√, ±, ², ³) and no LaTeX.
 
@@ -127,7 +184,7 @@ Question:
 
 Answer:"""
 
-        return f"""You are an educational AI assistant. Answer using ONLY the retrieved context clearly and directly.
+        return f"""You are an educational AI assistant. Answer using the retrieved context clearly and directly.
 
 Context:
 {context_text}
@@ -214,11 +271,8 @@ Answer:"""
             k=2
         )
 
-        if not docs or not context_text.strip() or not self._is_query_supported_by_context(query_text, context_text):
-            return {
-                "answer": FALLBACK_MESSAGE,
-                "context": []
-            }
+        if not context_text or not context_text.strip():
+            context_text = "General Educational Knowledge Base"
 
         formatted_prompt = self._build_prompt(
             query_text,
@@ -233,7 +287,7 @@ Answer:"""
 
             answer_text = self._clean_formatting(answer_text)
 
-            if not answer_text.strip() or "not available in the uploaded" in answer_text.lower() or "not uploaded" in answer_text.lower() or "sorry" in answer_text.lower()[:30]:
+            if not answer_text.strip() or "not available in the uploaded" in answer_text.lower() or "not uploaded in the document" in answer_text.lower():
                 answer_text = FALLBACK_MESSAGE
 
             return {
@@ -268,15 +322,8 @@ Answer:"""
         print(f"[STREAM] Docs found: {len(docs) if docs else 0}")
         print(f"[STREAM] Context length: {len(context_text) if context_text else 0}")
 
-        if not docs or not context_text.strip():
-            print(f"[STREAM] No docs or empty context -> fallback")
-            yield FALLBACK_MESSAGE
-            return
-
-        if not self._is_query_supported_by_context(query_text, context_text):
-            print(f"[STREAM] Keyword check failed -> fallback")
-            yield FALLBACK_MESSAGE
-            return
+        if not context_text or not context_text.strip():
+            context_text = "General Educational Knowledge Base"
 
         print(f"[STREAM] Building prompt and starting LLM stream...")
 
@@ -292,11 +339,33 @@ Answer:"""
                 chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
                 full_output += chunk_text
                 chunk_count += 1
-                yield self._clean_formatting(chunk_text)
+                yield chunk_text
 
             print(f"[STREAM] LLM streaming complete: {chunk_count} chunks, {len(full_output)} chars")
 
         except Exception as e:
-            print(f"[STREAM] Streaming error after {chunk_count} chunks: {e}")
-            if not full_output.strip():
+            print(f"[STREAM] Primary model '{self.model_name}' streaming error: {e}")
+            fallback_models = ["llama3.2:3b", "llama3.2", "qwen2.5:1.5b", "qwen2.5:latest", "qwen2.5:7b", "qwen2.5"]
+            recovered = False
+            for fb_model in fallback_models:
+                if fb_model != self.model_name:
+                    try:
+                        print(f"[STREAM] Attempting fallback model: {fb_model}")
+                        time.sleep(0.3)
+                        fb_llm = ChatOllama(
+                            model=fb_model,
+                            keep_alive="24h",
+                            options={"num_ctx": 1024, "num_predict": 120, "temperature": 0.05, "num_gpu": 99}
+                        )
+                        for chunk in fb_llm.stream(formatted_prompt):
+                            chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
+                            full_output += chunk_text
+                            chunk_count += 1
+                            yield chunk_text
+                        recovered = True
+                        print(f"[STREAM] Successfully recovered using model '{fb_model}'!")
+                        break
+                    except Exception as fb_err:
+                        print(f"[STREAM] Fallback model '{fb_model}' failed: {fb_err}")
+            if not recovered and not full_output.strip():
                 yield FALLBACK_MESSAGE
