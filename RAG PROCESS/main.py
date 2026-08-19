@@ -53,19 +53,24 @@ def extract_pdf_documents(pdf_path: str) -> list[Document]:
     return documents
 
 
-def load_all_pdfs(data_folder: str = "./data") -> list[Document]:
-    """Find and chunk all PDFs from root directory and ./data folder."""
+def load_all_pdfs() -> list[Document]:
+    """Find and chunk all PDFs across ./data, ./uploads, ../uploads, and project root folders."""
+    search_dirs = ["./data", "../uploads", "./uploads", "../BACKEND PROCESS/uploads", "..", "."]
     pdf_files = []
-    if os.path.exists(data_folder):
-        pdf_files.extend(glob.glob(os.path.join(data_folder, "*.pdf")))
 
-    for f in glob.glob("*.pdf"):
-        if f not in pdf_files:
-            pdf_files.append(f)
+    for d in search_dirs:
+        if os.path.exists(d):
+            found = glob.glob(os.path.join(d, "*.pdf"))
+            for f in found:
+                abs_f = os.path.abspath(f)
+                if abs_f not in [os.path.abspath(p) for p in pdf_files]:
+                    pdf_files.append(f)
 
     if not pdf_files:
-        print("❌ No PDF files found in current directory or ./data folder!")
+        print("❌ No PDF files found in search directories!")
         return []
+
+    print(f"📄 Found {len(pdf_files)} PDF documents: {[os.path.basename(f) for f in pdf_files]}")
 
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=600,
@@ -91,7 +96,7 @@ def load_all_pdfs(data_folder: str = "./data") -> list[Document]:
 
 
 def build_unified_vectorstore() -> Chroma | None:
-    """Build or load persistent Chroma vector store with fast embeddings."""
+    """Build or refresh persistent Chroma vector store with fast embeddings."""
     print("\n⏳ Initializing embeddings for vector database...")
     try:
         try:
@@ -108,20 +113,21 @@ def build_unified_vectorstore() -> Chroma | None:
         print(f"⚠️ Fast HuggingFaceEmbeddings unavailable ({e}). Falling back to OllamaEmbeddings...")
         embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
-    # Reuse existing vectorstore if directory exists and has data
-    if os.path.exists(CHROMA_PERSIST_DIR) and os.listdir(CHROMA_PERSIST_DIR):
-        print("⚡ Persistent vector store found. Loading existing database...")
-        return Chroma(
-            persist_directory=CHROMA_PERSIST_DIR,
-            embedding_function=embeddings,
-        )
+    docs = load_all_pdfs()
+
+    # Clear stale database to ensure full fresh sync of uploaded documents
+    if os.path.exists(CHROMA_PERSIST_DIR):
+        try:
+            import shutil
+            shutil.rmtree(CHROMA_PERSIST_DIR, ignore_errors=True)
+        except Exception as e:
+            print(f"⚠️ Warning clearing old chroma_db: {e}")
 
     vectorstore = Chroma(
         persist_directory=CHROMA_PERSIST_DIR,
         embedding_function=embeddings,
     )
 
-    docs = load_all_pdfs()
     if not docs:
         print("ℹ️ No PDF documents found. RAG Engine initialized with empty knowledge base.")
         return vectorstore
