@@ -167,11 +167,11 @@ async def lifespan(app_instance: FastAPI):
                 "options": {
                     "num_gpu": 0,
                     "temperature": 0.0,
-                    "num_predict": 160,
-                    "num_ctx": 384,
+                    "num_predict": 140,
+                    "num_ctx": 320,
                     "num_thread": 4,
-                    "top_k": 10,
-                    "top_p": 0.7
+                    "top_k": 5,
+                    "top_p": 0.5
                 }
             }
         )

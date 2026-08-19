@@ -18,12 +18,12 @@ class RAGEngine:
         self.options = {
             "num_gpu": 0,
             "temperature": 0.0,
-            "num_predict": 160,
-            "num_ctx": 384,
+            "num_predict": 140,
+            "num_ctx": 320,
             "num_thread": 4,
-            "repeat_penalty": 1.1,
-            "top_k": 10,
-            "top_p": 0.7
+            "repeat_penalty": 1.05,
+            "top_k": 5,
+            "top_p": 0.5
         }
 
         self.default_kwargs = {
@@ -67,11 +67,11 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 384
-        fast_options["num_predict"] = 160
+        fast_options["num_ctx"] = 320
+        fast_options["num_predict"] = 140
         fast_options["temperature"] = 0.0
-        fast_options["top_k"] = 10
-        fast_options["top_p"] = 0.7
+        fast_options["top_k"] = 5
+        fast_options["top_p"] = 0.5
         fast_options["num_gpu"] = 0
 
         fast_kwargs = dict(self.default_kwargs)
@@ -113,24 +113,37 @@ class RAGEngine:
         k=3
     ):
         try:
-            docs = self.vectorstore.similarity_search(
-                query,
-                k=k
-            )
-
-            if not docs:
+            results = self.vectorstore.similarity_search_with_score(query, k=k)
+            if not results:
                 print("[RAG] No matching documents found")
                 return "", []
 
-            context_text = "\n\n".join(
-                [doc.page_content for doc in docs]
-            )[:700]
+            valid_docs = []
+            for doc, score in results:
+                print(f"[RAG] Query: '{query[:25]}' | Doc score: {score}")
+                # Score threshold check for strict document relevance
+                if score < 1.15:
+                    valid_docs.append(doc)
 
-            return context_text, docs
+            if not valid_docs:
+                print("[RAG] No documents met relevance threshold -> returning empty")
+                return "", []
+
+            context_text = "\n\n".join(
+                [doc.page_content for doc in valid_docs]
+            )[:500]
+
+            return context_text, valid_docs
 
         except Exception as e:
-            print(f"[RAG] Retrieval Error: {e}")
-            return "", []
+            print(f"[RAG] Retrieval Error with score: {e}")
+            try:
+                docs = self.vectorstore.similarity_search(query, k=k)
+                if not docs:
+                    return "", []
+                return "\n\n".join([d.page_content for d in docs])[:500], docs
+            except Exception:
+                return "", []
 
     def _classify_query(self, query: str):
         query_lower = query.lower()
@@ -171,8 +184,11 @@ class RAGEngine:
     ):
         is_math, is_big, is_diagram = self._classify_query(query)
 
+        strict_guard = f"If the answer is NOT mentioned in the Context below, reply EXACTLY: {FALLBACK_MESSAGE}"
+
         if is_diagram:
-            return f"""Answer using the context. Draw an ASCII diagram inside a code block then explain briefly.
+            return f"""Answer using ONLY the context. Draw an ASCII diagram inside a code block then explain.
+{strict_guard}
 
 Context:
 {context_text}
@@ -181,12 +197,12 @@ Question: {query}
 Answer:"""
 
         if is_math:
-            return f"""Solve step-by-step using the context.
-Format:
+            return f"""Solve step-by-step using ONLY the context.
 Step 1: ...
 Step 2: ...
 Final Answer: ...
 Use Unicode math symbols (√, ±, ², ³, ·) without raw LaTeX.
+{strict_guard}
 
 Context:
 {context_text}
@@ -195,12 +211,13 @@ Question: {query}
 Solution:"""
 
         if is_big:
-            return f"""Provide a detailed 16-mark university answer using the context.
+            return f"""Provide a detailed 16-mark university answer using ONLY the context.
 Structure:
 1. Definition & Core Concept
 2. Key Points / Architecture / Types
 3. Working Mechanism / Process
 4. Example: Practical example and application
+{strict_guard}
 
 Context:
 {context_text}
@@ -208,7 +225,8 @@ Context:
 Question: {query}
 Answer:"""
 
-        return f"""Answer clearly using the context. Provide 4-5 lines of explanation followed by a practical Example.
+        return f"""Answer using ONLY the provided context. Provide 4-5 lines of explanation followed by a practical Example.
+{strict_guard}
 
 Context:
 {context_text}
