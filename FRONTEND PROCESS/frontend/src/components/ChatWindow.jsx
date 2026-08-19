@@ -40,10 +40,11 @@ const formatMathText = (text) => {
     .replace(/\^2/g, "²")
     .replace(/\^3/g, "³");
 
-  // Force step headings onto separate lines with blank line spacing
+  // Force step headings and Example onto separate lines with double blank line spacing
   formatted = formatted.replace(/([^\n])\s*(###?\s*Step|\bStep\s+\d+:)/g, "$1\n\n$2");
   formatted = formatted.replace(/([^\n])\s*(\bFinal Answer:)/g, "$1\n\n$2");
   formatted = formatted.replace(/([^\n])\s*(\bVerification\b)/g, "$1\n\n$2");
+  formatted = formatted.replace(/([^\n])\s*(\bExample:|\bExamples:)/g, "$1\n\n$2");
 
   return formatted;
 };

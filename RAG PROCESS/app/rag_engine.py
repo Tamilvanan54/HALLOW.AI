@@ -276,10 +276,11 @@ Answer:"""
             .replace("^3", "³")
         )
 
-        # Ensure headings like ### Step 1 start on a fresh line
+        # Ensure headings like ### Step 1 and Example start on a fresh line with double spacing
         cleaned = re.sub(r'([^\n])\s*(###?\s*Step|\bStep\s+\d+:)', r'\1\n\n\2', cleaned)
         cleaned = re.sub(r'([^\n])\s*(\bFinal Answer:)', r'\1\n\n\2', cleaned)
         cleaned = re.sub(r'([^\n])\s*(\bVerification\b)', r'\1\n\n\2', cleaned)
+        cleaned = re.sub(r'([^\n])\s*(\bExample:|\bExamples:)', r'\1\n\n\2', cleaned)
 
         return cleaned
 
