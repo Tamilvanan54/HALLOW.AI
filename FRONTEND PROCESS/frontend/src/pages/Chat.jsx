@@ -303,19 +303,22 @@ if(!newChat){
 }
 
 
-    // User message immediately show
+    // Immediately show User message AND AI Thinking placeholder at 0ms
 setMessages((prev) => [
   ...prev,
   {
     sender: "User",
     text: currentMessage
+  },
+  {
+    sender: "AI",
+    text: ""
   }
 ]);
 
 try {
-
-  // Save user message
-  await axios.post(
+  // Save user message in background without blocking stream start
+  axios.post(
     `${API_BASE_URL}/save-message`,
     null,
     {
@@ -325,17 +328,7 @@ try {
         message: currentMessage
       }
     }
-  );
-
-  // Create empty AI message
-
-setMessages((prev) => [
-  ...prev,
-  {
-    sender: "AI",
-    text: ""
-  }
-]);
+  ).catch((e) => console.error("Failed to save user message:", e));
 
 const response = await fetch(
   `${RAG_BASE_URL}/api/query/stream`,

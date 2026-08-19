@@ -204,7 +204,11 @@ Question:
 
 Answer:"""
 
-        return f"""You are an educational AI assistant. Answer the question directly and concisely using ONLY the retrieved context (2-4 clear sentences or short key points). Keep it short and directly to the point.
+        return f"""You are an educational study assistant. Answer the user's question clearly using the retrieved context.
+Structure your answer with:
+- Clear explanation of the core concept
+- Key points and details (using bullet points)
+- A relevant "Example:" section at the end
 
 Context:
 {context_text}
