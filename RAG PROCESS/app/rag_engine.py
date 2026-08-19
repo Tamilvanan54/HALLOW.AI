@@ -113,37 +113,20 @@ class RAGEngine:
         k=3
     ):
         try:
-            results = self.vectorstore.similarity_search_with_score(query, k=k)
-            if not results:
+            docs = self.vectorstore.similarity_search(query, k=k)
+            if not docs:
                 print("[RAG] No matching documents found")
                 return "", []
 
-            valid_docs = []
-            for doc, score in results:
-                print(f"[RAG] Query: '{query[:25]}' | Doc score: {score}")
-                # Strict distance threshold: scores >= 0.85 are unrelated to uploaded PDFs
-                if score < 0.85:
-                    valid_docs.append(doc)
-
-            if not valid_docs:
-                print("[RAG] No documents met strict relevance threshold (< 0.85) -> returning empty")
-                return "", []
-
             context_text = "\n\n".join(
-                [doc.page_content for doc in valid_docs]
-            )[:320]
+                [doc.page_content for doc in docs]
+            )[:380]
 
-            return context_text, valid_docs
+            return context_text, docs
 
         except Exception as e:
-            print(f"[RAG] Retrieval Error with score: {e}")
-            try:
-                docs = self.vectorstore.similarity_search(query, k=k)
-                if not docs:
-                    return "", []
-                return "\n\n".join([d.page_content for d in docs])[:380], docs
-            except Exception:
-                return "", []
+            print(f"[RAG] Retrieval Error: {e}")
+            return "", []
 
     def _classify_query(self, query: str):
         query_lower = query.lower()
@@ -184,10 +167,11 @@ class RAGEngine:
     ):
         is_math, is_big, is_diagram = self._classify_query(query)
 
-        strict_guard = f"If the answer is NOT mentioned in the Context below, reply EXACTLY: {FALLBACK_MESSAGE}"
+        strict_guard = f"If the user question is NOT supported by facts in the Context, answer EXACTLY: {FALLBACK_MESSAGE}"
 
         if is_diagram:
-            return f"""Answer using ONLY the context. Draw an ASCII diagram inside a code block, then explain briefly. End 2 lines below with Example:.
+            return f"""Answer using ONLY the Context below. Draw an ASCII diagram inside a code block, then explain.
+Leave a blank line, then write Example: followed by a practical example.
 {strict_guard}
 
 Context:
@@ -197,12 +181,12 @@ Question: {query}
 Answer:"""
 
         if is_math:
-            return f"""Solve step-by-step using ONLY the context.
+            return f"""Solve step-by-step using ONLY the Context below.
 Step 1: ...
 Step 2: ...
 Final Answer: ...
 Use Unicode math symbols (√, ±, ², ³, ·) without raw LaTeX.
-End 2 lines below with Example:.
+Leave a blank line, then write Example: followed by a practical example.
 {strict_guard}
 
 Context:
@@ -212,7 +196,7 @@ Question: {query}
 Solution:"""
 
         if is_big:
-            return f"""Provide a detailed 16-mark university answer using ONLY the context.
+            return f"""Provide a detailed 16-mark university answer using ONLY the Context below.
 Structure:
 1. Definition & Core Concept
 2. Key Points / Architecture / Types
@@ -227,8 +211,8 @@ Context:
 Question: {query}
 Answer:"""
 
-        return f"""Answer using ONLY the provided context.
-Provide 4-5 lines of clear explanation.
+        return f"""Answer using ONLY the provided Context below.
+Provide 4-5 lines of clear explanation based on the Context.
 Leave a blank line, then write Example: followed by a practical real-world example.
 {strict_guard}
 
