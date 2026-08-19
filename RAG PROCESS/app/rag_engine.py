@@ -170,7 +170,7 @@ class RAGEngine:
         is_math, is_big, is_diagram = self._classify_query(query)
 
         if is_diagram:
-            return f"""You are an educational AI assistant. Output an ASCII flowchart / diagram inside a code block (``` ... ```) followed by a short explanation.
+            return f"""You are an educational AI assistant. Output an ASCII diagram inside a code block (```...```) followed by a short explanation and a concise Example.
 
 Context:
 {context_text}
@@ -186,7 +186,7 @@ Rules:
 1. Put each step on a separate line (Step 1:, Step 2:, Step 3:, etc.).
 2. Put a blank line between steps.
 3. Use clean symbols (√, ±, ², ³, ·) and NO raw LaTeX.
-4. Conclude with 'Final Answer:'.
+4. Conclude with 'Final Answer:' and a short 'Example / Verification:'.
 
 Context:
 {context_text}
@@ -202,7 +202,7 @@ Structure:
 1. Definition & Core Concept
 2. Key Points / Architecture / Types (bullet points)
 3. Working Mechanism / Process
-4. Practical Example & Real-World Application
+4. Example: Detailed real-world practical example and industry application
 
 Context:
 {context_text}
@@ -212,8 +212,11 @@ Question:
 
 Answer:"""
 
-        # DEFAULT: Short, crisp, direct & super fast answer!
-        return f"""You are an educational study assistant. Provide a concise, direct, to-the-point answer (2-3 crisp bullet points) using the context. Keep it short and clear.
+        # DEFAULT: Short, crisp, direct & fast answer with concise example!
+        return f"""You are an educational study assistant. Provide a concise, direct answer using the context.
+Structure:
+- 2-3 crisp bullet points explaining the core concept
+- Example: A 1-2 sentence simple practical example
 
 Context:
 {context_text}
@@ -363,13 +366,13 @@ Answer:"""
 
         is_math, is_big, is_diagram = self._classify_query(query_text)
         if is_big:
-            predict_tokens = 280
+            predict_tokens = 320
         elif is_math:
-            predict_tokens = 180
+            predict_tokens = 200
         elif is_diagram:
-            predict_tokens = 140
+            predict_tokens = 160
         else:
-            predict_tokens = 80
+            predict_tokens = 110
 
         full_output = ""
         chunk_count = 0
