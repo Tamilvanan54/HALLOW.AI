@@ -121,12 +121,12 @@ class RAGEngine:
             valid_docs = []
             for doc, score in results:
                 print(f"[RAG] Query: '{query[:25]}' | Doc score: {score}")
-                # Score threshold check for strict document relevance
-                if score < 1.15:
+                # Strict distance threshold: scores >= 0.85 are unrelated to uploaded PDFs
+                if score < 0.85:
                     valid_docs.append(doc)
 
             if not valid_docs:
-                print("[RAG] No documents met relevance threshold -> returning empty")
+                print("[RAG] No documents met strict relevance threshold (< 0.85) -> returning empty")
                 return "", []
 
             context_text = "\n\n".join(
