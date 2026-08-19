@@ -18,12 +18,12 @@ class RAGEngine:
         self.options = {
             "num_gpu": 99,
             "temperature": 0.0,
-            "num_predict": 130,
-            "num_ctx": 256,
+            "num_predict": 180,
+            "num_ctx": 1024,
             "num_thread": 8,
-            "repeat_penalty": 1.05,
-            "top_k": 5,
-            "top_p": 0.5
+            "repeat_penalty": 1.1,
+            "top_k": 10,
+            "top_p": 0.7
         }
 
         self.default_kwargs = {
@@ -67,11 +67,11 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 256
-        fast_options["num_predict"] = 130
+        fast_options["num_ctx"] = 1024
+        fast_options["num_predict"] = 180
         fast_options["temperature"] = 0.0
-        fast_options["top_k"] = 5
-        fast_options["top_p"] = 0.5
+        fast_options["top_k"] = 10
+        fast_options["top_p"] = 0.7
         fast_options["num_gpu"] = 99
 
         fast_kwargs = dict(self.default_kwargs)
@@ -110,7 +110,7 @@ class RAGEngine:
     def _get_context_and_docs(
         self,
         query,
-        k=2
+        k=3
     ):
         try:
             docs = self.vectorstore.similarity_search(
@@ -124,7 +124,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in docs]
-            )[:800]
+            )[:1200]
 
             return context_text, docs
 
@@ -134,19 +134,20 @@ class RAGEngine:
 
     def _classify_query(self, query: str):
         query_lower = query.lower()
-        
+
         math_keywords = [
             "solve", "calculate", "find", "evaluate", "integrate",
             "differentiate", "derivative", "integral", "equation",
             "matrix", "algebra", "calculus", "limit", "theorem", "proof",
             "domain", "formula", "roots", "quadratic", "sum", "multiply",
-            "function", "f(x)", "y =", "x2y"
+            "function", "f(x)", "y =", "x2y", "range", "inverse",
+            "trigonometry", "sin", "cos", "tan", "log", "ln"
         ]
         is_math = (
             any(k in query_lower for k in math_keywords)
-            or any(s in query for s in ["=", "+", "-", "*", "/", "^", "²", "³", "√", "(", ")", "↔", "<->", "->"])
+            or any(s in query for s in ["=", "+", "*", "/", "^", "²", "³", "√", "↔", "<->", "->"])
         )
-        
+
         big_keywords = [
             "16 mark", "16-mark", "16mark", "10 mark", "10-mark", "10mark",
             "8 mark", "8-mark", "brief", "briefly", "big answer", "detail", "detailed",
@@ -154,13 +155,13 @@ class RAGEngine:
             "essay", "full explanation", "comprehensive", "long answer", "describe in detail"
         ]
         is_big = any(k in query_lower for k in big_keywords)
-        
+
         diagram_keywords = [
             "flowchart", "flow chart", "diagram", "graph", "workflow",
             "architecture", "process", "pipeline", "tree", "chart"
         ]
         is_diagram = any(k in query_lower for k in diagram_keywords)
-        
+
         return is_math, is_big, is_diagram
 
     def _build_prompt(
@@ -172,7 +173,7 @@ class RAGEngine:
 
         if is_diagram:
             return f"""You are an educational AI assistant. Answer using ONLY the retrieved context.
-Output an ASCII diagram inside a code block (```...```) followed by a short explanation and a concise Example.
+Output an ASCII diagram inside a code block followed by a short explanation and a concise Example.
 If the question is NOT in the context, output EXACTLY:
 {FALLBACK_MESSAGE}
 
@@ -185,14 +186,13 @@ Question:
 Answer:"""
 
         if is_math:
-            return f"""You are a Mathematics Tutor. Solve the problem step-by-step using the context.
+            return f"""You are a Mathematics Tutor. Solve the following problem step-by-step.
+Use ONLY the formulas and concepts from the context below.
 Rules:
-1. Put each step on a separate line (Step 1:, Step 2:, Step 3:, etc.).
-2. Put a blank line between steps.
-3. Conclude with 'Final Answer:' on a new line.
-4. Use clean Unicode symbols (√, ±, ², ³, ·) and NO raw LaTeX.
-5. If the mathematical concept or question is NOT in the context, output EXACTLY:
-{FALLBACK_MESSAGE}
+1. Write each step on its own line: Step 1:, Step 2:, Step 3:, etc.
+2. Show all working clearly.
+3. End with "Final Answer:" on a new line.
+4. Use Unicode math symbols — no LaTeX.
 
 Context:
 {context_text}
@@ -221,12 +221,13 @@ Question:
 Answer:"""
 
         # DEFAULT: 4-5 lines clear explanation + practical Example strictly from context!
-        return f"""You are an educational study assistant. Answer the question using ONLY the provided retrieved context.
-Structure:
-- Provide 4-5 lines of clear explanation covering the key concepts
-- Example: Provide a practical real-world example
-If the question is NOT found in the context, output EXACTLY:
+        return f"""You are an educational study assistant. Answer the question using ONLY the provided context below.
+IMPORTANT: Do NOT use your own knowledge. If the answer is NOT in the context, output EXACTLY:
 {FALLBACK_MESSAGE}
+
+Structure:
+- 4-5 lines of clear explanation
+- Then a practical Example
 
 Context:
 {context_text}
@@ -309,9 +310,12 @@ Answer:"""
                 "context": []
             }
 
+        is_math = self._classify_query(query_text)[0]
+        k_value = 4 if is_math else 3
+
         context_text, docs = self._get_context_and_docs(
             query_text,
-            k=2
+            k=k_value
         )
 
         if not docs or not context_text or not context_text.strip():
@@ -360,9 +364,12 @@ Answer:"""
             yield corrected
             return
 
+        is_math = self._classify_query(query_text)[0]
+        k_value = 4 if is_math else 3
+
         context_text, docs = self._get_context_and_docs(
             query_text,
-            k=2
+            k=k_value
         )
 
         print(f"[STREAM] Docs found: {len(docs) if docs else 0}")
@@ -382,13 +389,13 @@ Answer:"""
 
         is_math, is_big, is_diagram = self._classify_query(query_text)
         if is_big:
-            predict_tokens = 320
+            predict_tokens = 350
         elif is_math:
-            predict_tokens = 200
+            predict_tokens = 280
         elif is_diagram:
-            predict_tokens = 160
+            predict_tokens = 200
         else:
-            predict_tokens = 140
+            predict_tokens = 180
 
         full_output = ""
         chunk_count = 0
@@ -409,11 +416,10 @@ Answer:"""
                 if fb_model != self.model_name:
                     try:
                         print(f"[STREAM] Attempting fallback model: {fb_model}")
-                        time.sleep(0.2)
                         fb_llm = ChatOllama(
                             model=fb_model,
                             keep_alive="24h",
-                            options={"num_ctx": 512, "num_predict": predict_tokens, "temperature": 0.0, "num_gpu": 99, "num_thread": 8}
+                            options={"num_ctx": 1024, "num_predict": predict_tokens, "temperature": 0.0, "num_gpu": 99, "num_thread": 8}
                         )
                         for chunk in fb_llm.stream(formatted_prompt):
                             chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
@@ -426,4 +432,4 @@ Answer:"""
                     except Exception as fb_err:
                         print(f"[STREAM] Fallback model '{fb_model}' failed: {fb_err}")
             if not recovered and not full_output.strip():
-                yield FALLBACK_MESSAGE
+                yield FALLBACK_MESSAGE
