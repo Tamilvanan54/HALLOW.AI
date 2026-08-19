@@ -236,7 +236,6 @@ Context:
 {context_text}
 
 Question: {query}
-Answer:""": {query}
 Answer:"""
 
     def _clean_formatting(self, text: str) -> str:
