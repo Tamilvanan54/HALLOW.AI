@@ -212,11 +212,11 @@ Question:
 
 Answer:"""
 
-        # DEFAULT: Short, crisp, direct & fast answer with concise example!
-        return f"""You are an educational study assistant. Provide a concise, direct answer using the context.
+        # DEFAULT: 4-5 lines clear explanation + practical Example!
+        return f"""You are an educational study assistant. Answer clearly using the context.
 Structure:
-- 2-3 crisp bullet points explaining the core concept
-- Example: A 1-2 sentence simple practical example
+- Provide 4-5 lines of clear, informative explanation covering the definition and key concepts
+- Example: Provide a clear, practical real-world example
 
 Context:
 {context_text}
@@ -372,7 +372,7 @@ Answer:"""
         elif is_diagram:
             predict_tokens = 160
         else:
-            predict_tokens = 110
+            predict_tokens = 140
 
         full_output = ""
         chunk_count = 0
