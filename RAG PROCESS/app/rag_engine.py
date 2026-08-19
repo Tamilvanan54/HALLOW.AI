@@ -17,13 +17,13 @@ class RAGEngine:
 
         self.options = {
             "num_gpu": 99,
-            "temperature": 0.1,
-            "num_predict": 220,
-            "num_ctx": 1024,
+            "temperature": 0.0,
+            "num_predict": 180,
+            "num_ctx": 512,
             "num_thread": 8,
-            "repeat_penalty": 1.15,
-            "top_k": 20,
-            "top_p": 0.8
+            "repeat_penalty": 1.1,
+            "top_k": 10,
+            "top_p": 0.7
         }
 
         self.default_kwargs = {
@@ -67,10 +67,11 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 1024
-        fast_options["num_predict"] = 120
-        fast_options["temperature"] = 0.05
+        fast_options["num_ctx"] = 512
+        fast_options["num_predict"] = 180
+        fast_options["temperature"] = 0.0
         fast_options["top_k"] = 10
+        fast_options["top_p"] = 0.7
         fast_options["num_gpu"] = 99
 
         fast_kwargs = dict(self.default_kwargs)
@@ -121,16 +122,9 @@ class RAGEngine:
                 print("[RAG] No matching documents found")
                 return "", []
 
-            print("=" * 50)
-            print("QUESTION:", query)
-            print("RETRIEVED DOCS COUNT:", len(docs))
-            print("BEST DOC SAMPLE:")
-            print(docs[0].page_content[:500])
-            print("=" * 50)
-
             context_text = "\n\n".join(
                 [doc.page_content for doc in docs]
-            )[:1200]
+            )[:650]
 
             return context_text, docs
 
