@@ -124,7 +124,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in docs]
-            )[:360]
+            )[:800]
 
             return context_text, docs
 
@@ -139,11 +139,12 @@ class RAGEngine:
             "solve", "calculate", "find", "evaluate", "integrate",
             "differentiate", "derivative", "integral", "equation",
             "matrix", "algebra", "calculus", "limit", "theorem", "proof",
-            "domain", "formula", "roots", "quadratic", "sum", "multiply"
+            "domain", "formula", "roots", "quadratic", "sum", "multiply",
+            "function", "f(x)", "y =", "x2y"
         ]
         is_math = (
             any(k in query_lower for k in math_keywords)
-            or any(s in query for s in ["=", "+", "-", "*", "/", "^", "²", "³", "√", "(", ")"])
+            or any(s in query for s in ["=", "+", "-", "*", "/", "^", "²", "³", "√", "(", ")", "↔", "<->", "->"])
         )
         
         big_keywords = [
@@ -170,7 +171,10 @@ class RAGEngine:
         is_math, is_big, is_diagram = self._classify_query(query)
 
         if is_diagram:
-            return f"""You are an educational AI assistant. Output an ASCII diagram inside a code block (```...```) followed by a short explanation and a concise Example.
+            return f"""You are an educational AI assistant. Answer using ONLY the retrieved context.
+Output an ASCII diagram inside a code block (```...```) followed by a short explanation and a concise Example.
+If the question is NOT in the context, output EXACTLY:
+{FALLBACK_MESSAGE}
 
 Context:
 {context_text}
@@ -185,8 +189,10 @@ Answer:"""
 Rules:
 1. Put each step on a separate line (Step 1:, Step 2:, Step 3:, etc.).
 2. Put a blank line between steps.
-3. Use clean symbols (√, ±, ², ³, ·) and NO raw LaTeX.
-4. Conclude with 'Final Answer:' and a short 'Example / Verification:'.
+3. Conclude with 'Final Answer:' on a new line.
+4. Use clean Unicode symbols (√, ±, ², ³, ·) and NO raw LaTeX.
+5. If the mathematical concept or question is NOT in the context, output EXACTLY:
+{FALLBACK_MESSAGE}
 
 Context:
 {context_text}
@@ -197,12 +203,14 @@ Question:
 Solution:"""
 
         if is_big:
-            return f"""You are an academic professor. Provide a detailed, high-scoring 16-mark university examination answer using the context.
+            return f"""You are an academic professor. Provide a detailed 16-mark university examination answer using ONLY the context.
 Structure:
 1. Definition & Core Concept
 2. Key Points / Architecture / Types (bullet points)
 3. Working Mechanism / Process
-4. Example: Detailed real-world practical example and industry application
+4. Example: Practical example and application
+If the question is NOT in the context, output EXACTLY:
+{FALLBACK_MESSAGE}
 
 Context:
 {context_text}
@@ -212,11 +220,13 @@ Question:
 
 Answer:"""
 
-        # DEFAULT: 4-5 lines clear explanation + practical Example!
-        return f"""You are an educational study assistant. Answer clearly using the context.
+        # DEFAULT: 4-5 lines clear explanation + practical Example strictly from context!
+        return f"""You are an educational study assistant. Answer the question using ONLY the provided retrieved context.
 Structure:
-- Provide 4-5 lines of clear, informative explanation covering the definition and key concepts
-- Example: Provide a clear, practical real-world example
+- Provide 4-5 lines of clear explanation covering the key concepts
+- Example: Provide a practical real-world example
+If the question is NOT found in the context, output EXACTLY:
+{FALLBACK_MESSAGE}
 
 Context:
 {context_text}
@@ -304,8 +314,11 @@ Answer:"""
             k=2
         )
 
-        if not context_text or not context_text.strip():
-            context_text = "General Educational Knowledge Base"
+        if not docs or not context_text or not context_text.strip():
+            return {
+                "answer": FALLBACK_MESSAGE,
+                "context": []
+            }
 
         formatted_prompt = self._build_prompt(
             query_text,
@@ -355,8 +368,10 @@ Answer:"""
         print(f"[STREAM] Docs found: {len(docs) if docs else 0}")
         print(f"[STREAM] Context length: {len(context_text) if context_text else 0}")
 
-        if not context_text or not context_text.strip():
-            context_text = "General Educational Knowledge Base"
+        if not docs or not context_text or not context_text.strip():
+            print("[STREAM] No relevant documents found -> strictly returning fallback message")
+            yield FALLBACK_MESSAGE
+            return
 
         print(f"[STREAM] Building prompt and starting LLM stream...")
 
