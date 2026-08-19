@@ -113,16 +113,26 @@ class RAGEngine:
         k=3
     ):
         try:
-            docs = self.vectorstore.similarity_search(query, k=k)
-            if not docs:
+            results = self.vectorstore.similarity_search_with_score(query, k=k)
+            if not results:
                 print("[RAG] No matching documents found")
                 return "", []
 
+            valid_docs = []
+            for doc, score in results:
+                # Relevance score threshold: score < 0.98 matches document topics, >= 0.98 rejects unrelated topics
+                if score < 0.98:
+                    valid_docs.append(doc)
+
+            if not valid_docs:
+                print(f"[RAG] Question '{query[:30]}' is NOT in RAG documents -> returning empty context")
+                return "", []
+
             context_text = "\n\n".join(
-                [doc.page_content for doc in docs]
+                [doc.page_content for doc in valid_docs]
             )[:380]
 
-            return context_text, docs
+            return context_text, valid_docs
 
         except Exception as e:
             print(f"[RAG] Retrieval Error: {e}")
