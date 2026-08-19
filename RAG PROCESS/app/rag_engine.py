@@ -47,7 +47,7 @@ class RAGEngine:
             res = requests.get(
                 "http://127.0.0.1:8000/feedback-correction",
                 params={"question": query_text},
-                timeout=0.3
+                timeout=0.015
             )
             if res.status_code == 200:
                 data = res.json()
@@ -56,8 +56,8 @@ class RAGEngine:
                     if ans and "cannot find information" not in ans.lower() and "sorry" not in ans.lower()[:20]:
                         print(f"✨ [FEEDBACK FIRST MATCH]: Found feedback answer for question '{query_text}'")
                         return ans
-        except Exception as e:
-            print(f"⚠️ [FEEDBACK CHECK]: {e}")
+        except Exception:
+            pass
         return None
 
     def set_model(self, model_name: str):
@@ -131,7 +131,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in valid_docs]
-            )[:380]
+            )[:320]
 
             return context_text, valid_docs
 
