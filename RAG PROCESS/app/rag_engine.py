@@ -18,9 +18,9 @@ class RAGEngine:
         self.options = {
             "num_gpu": 0,
             "temperature": 0.0,
-            "num_predict": 130,
-            "num_ctx": 240,
-            "num_thread": 8,
+            "num_predict": 120,
+            "num_ctx": 256,
+            "num_thread": 4,
             "repeat_penalty": 1.05,
             "top_k": 5,
             "top_p": 0.5
@@ -47,7 +47,7 @@ class RAGEngine:
             res = requests.get(
                 "http://127.0.0.1:8000/feedback-correction",
                 params={"question": query_text},
-                timeout=0.02
+                timeout=0.005
             )
             if res.status_code == 200:
                 data = res.json()
@@ -67,8 +67,8 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 240
-        fast_options["num_predict"] = 130
+        fast_options["num_ctx"] = 256
+        fast_options["num_predict"] = 120
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 5
         fast_options["top_p"] = 0.5
