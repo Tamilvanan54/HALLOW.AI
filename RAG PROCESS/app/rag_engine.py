@@ -18,8 +18,8 @@ class RAGEngine:
         self.options = {
             "num_gpu": 0,
             "temperature": 0.0,
-            "num_predict": 120,
-            "num_ctx": 256,
+            "num_predict": 200,
+            "num_ctx": 384,
             "num_thread": 4,
             "repeat_penalty": 1.05,
             "top_k": 5,
@@ -67,8 +67,8 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 256
-        fast_options["num_predict"] = 120
+        fast_options["num_ctx"] = 384
+        fast_options["num_predict"] = 200
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 5
         fast_options["top_p"] = 0.5
@@ -120,9 +120,8 @@ class RAGEngine:
 
             valid_docs = []
             for doc, score in results:
-                print(f"[RAG] Query: '{query[:25]}' | Doc score: {score}")
-                # Score threshold < 0.72 strictly accepts document matches and rejects non-RAG topics
-                if score < 0.72:
+                # Relevance score threshold: score < 0.98 matches document topics, >= 0.98 rejects unrelated topics
+                if score < 0.98:
                     valid_docs.append(doc)
 
             if not valid_docs:
@@ -179,57 +178,31 @@ class RAGEngine:
         is_math, is_big, is_diagram = self._classify_query(query)
 
         if is_diagram:
-            return f"""Answer the question using the Context below.
-Draw an ASCII diagram inside a code block, then explain briefly.
+            return f"""Context: {context_text}
+Q: {query}
+Answer with an ASCII diagram inside a code block, a brief explanation, and end with:
 
-Example: A practical example (separated 2 lines below)
-
-Context:
-{context_text}
-
-Question: {query}
-Answer:"""
+Example: Practical example"""
 
         if is_math:
-            return f"""Solve the problem step-by-step using the Context below.
-Format:
-Step 1: ...
-Step 2: ...
-Final Answer: ...
-Use Unicode math symbols (√, ±, ², ³, ·) without raw LaTeX.
+            return f"""Context: {context_text}
+Q: {query}
+Solve step-by-step (Step 1:, Step 2:, Final Answer:) with Unicode math symbols. End with:
 
-Example: A short verification example (separated 2 lines below)
-
-Context:
-{context_text}
-
-Question: {query}
-Solution:"""
+Example: Verification example"""
 
         if is_big:
-            return f"""Provide a detailed 16-mark university answer using the Context below.
-Structure:
-1. Definition & Core Concept
-2. Key Points / Architecture / Types
-3. Working Mechanism / Process
+            return f"""Context: {context_text}
+Q: {query}
+Provide a detailed 16-mark answer (Definition, Key Points, Process) and end with:
 
-Example: Practical example and application (separated 2 lines below)
+Example: Real-world example"""
 
-Context:
-{context_text}
+        return f"""Context: {context_text}
+Q: {query}
+Provide 3-4 lines of explanation and end with:
 
-Question: {query}
-Answer:"""
-
-        return f"""Provide 4-5 lines of clear explanation answering the question using the Context below.
-
-Example: Provide a practical real-world example (separated 2 lines below)
-
-Context:
-{context_text}
-
-Question: {query}
-Answer:"""
+Example: Practical real-world example"""
 
     def _clean_formatting(self, text: str) -> str:
         if not text:
