@@ -17,13 +17,13 @@ class RAGEngine:
 
         self.options = {
             "num_gpu": 99,
-            "temperature": 0.0,
-            "num_predict": 90,
-            "num_ctx": 512,
+            "temperature": 0.1,
+            "num_predict": 220,
+            "num_ctx": 1024,
             "num_thread": 8,
-            "repeat_penalty": 1.1,
-            "top_k": 10,
-            "top_p": 0.7
+            "repeat_penalty": 1.15,
+            "top_k": 20,
+            "top_p": 0.8
         }
 
         self.default_kwargs = {
@@ -130,7 +130,7 @@ class RAGEngine:
 
             context_text = "\n\n".join(
                 [doc.page_content for doc in docs]
-            )[:700]
+            )[:1200]
 
             return context_text, docs
 
@@ -163,7 +163,7 @@ class RAGEngine:
         is_diagram = any(kw in query_lower for kw in diagram_keywords)
 
         if is_diagram:
-            return f"""You are an educational AI. Generate a clear ASCII diagram inside a code block (``` ... ```) followed by a concise explanation.
+            return f"""You are an educational AI assistant. Generate a clear ASCII flowchart / diagram inside a code block (``` ... ```) followed by a clear, comprehensive explanation.
 
 Context:
 {context_text}
@@ -174,7 +174,7 @@ Question:
 Answer:"""
 
         if is_math:
-            return f"""You are a Mathematics Tutor. Solve the problem clearly and step-by-step using the context. Put each step on a separate line. Use clean Unicode symbols (√, ±, ², ³) and no LaTeX.
+            return f"""You are a Mathematics Tutor. Provide a detailed, step-by-step math solution using the context. Put each step on a separate line. Use clean Unicode symbols (√, ±, ², ³) and no LaTeX. Conclude with a clear Final Answer.
 
 Context:
 {context_text}
@@ -184,7 +184,24 @@ Question:
 
 Answer:"""
 
-        return f"""You are an educational AI assistant. Answer using the retrieved context clearly and directly.
+        is_short = any(word in query_lower for word in ["short", "shortly", "in short", "summary", "one line", "quick"])
+
+        if is_short:
+            return f"""You are an educational AI assistant. Give a concise summary (2-3 key points) using the context.
+
+Context:
+{context_text}
+
+Question:
+{query}
+
+Answer:"""
+
+        return f"""You are an educational study assistant. Provide a clear, comprehensive, and well-structured explanation using the retrieved context.
+Structure your answer with:
+1. Clear definition and core concept
+2. Key points / techniques / algorithms (using bullet points)
+3. A relevant real-world or practical example
 
 Context:
 {context_text}
