@@ -157,17 +157,24 @@ async def lifespan(app_instance: FastAPI):
             vectorstore=vectorstore, 
             model_name="qwen2.5:3b",
             model_kwargs={
-                "keep_alive": "24h",
+                "keep_alive": "-1",
                 "options": {
                     "num_gpu": 99,
-                    "temperature": 0.1,
-                    "num_predict": 220,
-                    "num_ctx": 1024,
-                    "top_k": 20,
-                    "top_p": 0.8
+                    "temperature": 0.0,
+                    "num_predict": 160,
+                    "num_ctx": 512,
+                    "top_k": 10,
+                    "top_p": 0.7
                 }
             }
         )
+        # Pre-warm: force-load model weights into GPU VRAM so first query has 0s cold-start
+        print("⏳ Pre-warming LLM model into GPU VRAM...")
+        try:
+            _warmup = engine.llm.invoke("hi")
+            print("✅ Model pre-warmed and loaded in GPU VRAM!")
+        except Exception as e:
+            print(f"⚠️ Pre-warm attempt: {e} (model will load on first query)")
         print("✅ RAG Engine Microservice is ready!")
     yield
 
