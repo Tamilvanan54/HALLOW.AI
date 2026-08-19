@@ -132,32 +132,45 @@ class RAGEngine:
             print(f"[RAG] Retrieval Error: {e}")
             return "", []
 
+    def _classify_query(self, query: str):
+        query_lower = query.lower()
+        
+        math_keywords = [
+            "solve", "calculate", "find", "evaluate", "integrate",
+            "differentiate", "derivative", "integral", "equation",
+            "matrix", "algebra", "calculus", "limit", "theorem", "proof",
+            "domain", "formula", "roots", "quadratic", "sum", "multiply"
+        ]
+        is_math = (
+            any(k in query_lower for k in math_keywords)
+            or any(s in query for s in ["=", "+", "-", "*", "/", "^", "²", "³", "√", "(", ")"])
+        )
+        
+        big_keywords = [
+            "16 mark", "16-mark", "16mark", "10 mark", "10-mark", "10mark",
+            "8 mark", "8-mark", "brief", "briefly", "big answer", "detail", "detailed",
+            "in detail", "in-depth", "in depth", "elaborate", "explain in detail",
+            "essay", "full explanation", "comprehensive", "long answer", "describe in detail"
+        ]
+        is_big = any(k in query_lower for k in big_keywords)
+        
+        diagram_keywords = [
+            "flowchart", "flow chart", "diagram", "graph", "workflow",
+            "architecture", "process", "pipeline", "tree", "chart"
+        ]
+        is_diagram = any(k in query_lower for k in diagram_keywords)
+        
+        return is_math, is_big, is_diagram
+
     def _build_prompt(
         self,
         query,
         context_text
     ):
-        query_lower = query.lower()
-        math_keywords = [
-            "solve", "calculate", "find", "evaluate", "integrate",
-            "differentiate", "derivative", "integral", "equation",
-            "matrix", "algebra", "calculus", "limit", "theorem", "proof"
-        ]
-
-        is_math = (
-            any(keyword in query_lower for keyword in math_keywords)
-            or any(symbol in query for symbol in ["=", "+", "-", "*", "/", "^", "²", "√", "(", ")"])
-        )
-
-        diagram_keywords = [
-            "flowchart", "flow chart", "diagram", "graph", "workflow",
-            "architecture", "process", "pipeline", "tree", "chart",
-            "compare", "comparison", "figure", "tangent", "plot", "draw", "curve"
-        ]
-        is_diagram = any(kw in query_lower for kw in diagram_keywords)
+        is_math, is_big, is_diagram = self._classify_query(query)
 
         if is_diagram:
-            return f"""You are an educational AI assistant. Generate a clear ASCII flowchart / diagram inside a code block (``` ... ```) followed by a clear, comprehensive explanation.
+            return f"""You are an educational AI assistant. Output an ASCII flowchart / diagram inside a code block (``` ... ```) followed by a short explanation.
 
 Context:
 {context_text}
@@ -168,7 +181,28 @@ Question:
 Answer:"""
 
         if is_math:
-            return f"""You are a Mathematics Tutor. Provide a detailed, step-by-step math solution using the context. Put each step on a separate line. Use clean Unicode symbols (√, ±, ², ³) and no LaTeX. Conclude with a clear Final Answer.
+            return f"""You are a Mathematics Tutor. Solve the problem step-by-step using the context.
+Rules:
+1. Put each step on a separate line (Step 1:, Step 2:, Step 3:, etc.).
+2. Put a blank line between steps.
+3. Use clean symbols (√, ±, ², ³, ·) and NO raw LaTeX.
+4. Conclude with 'Final Answer:'.
+
+Context:
+{context_text}
+
+Question:
+{query}
+
+Solution:"""
+
+        if is_big:
+            return f"""You are an academic professor. Provide a detailed, high-scoring 16-mark university examination answer using the context.
+Structure:
+1. Definition & Core Concept
+2. Key Points / Architecture / Types (bullet points)
+3. Working Mechanism / Process
+4. Practical Example & Real-World Application
 
 Context:
 {context_text}
@@ -178,31 +212,8 @@ Question:
 
 Answer:"""
 
-        is_brief = any(word in query_lower for word in [
-            "brief", "briefly", "detail", "detailed", "elaborate", "depth",
-            "in-depth", "comprehensive", "in detail", "full", "broad", "explain with example"
-        ])
-
-        if is_brief:
-            return f"""You are an educational study assistant. Provide a comprehensive, well-structured explanation using the retrieved context.
-Structure your answer with:
-1. Clear definition and core concept
-2. Key points / techniques / algorithms (using bullet points)
-3. A relevant real-world or practical example
-
-Context:
-{context_text}
-
-Question:
-{query}
-
-Answer:"""
-
-        return f"""You are an educational study assistant. Answer the user's question clearly using the retrieved context.
-Structure your answer with:
-- Clear explanation of the core concept
-- Key points and details (using bullet points)
-- A relevant "Example:" section at the end
+        # DEFAULT: Short, crisp, direct & super fast answer!
+        return f"""You are an educational study assistant. Provide a concise, direct, to-the-point answer (2-3 crisp bullet points) using the context. Keep it short and clear.
 
 Context:
 {context_text}
@@ -350,10 +361,35 @@ Answer:"""
             context_text
         )
 
+        is_math, is_big, is_diagram = self._classify_query(query_text)
+        if is_big:
+            predict_tokens = 280
+        elif is_math:
+            predict_tokens = 180
+        elif is_diagram:
+            predict_tokens = 140
+        else:
+            predict_tokens = 80
+
         full_output = ""
         chunk_count = 0
         try:
-            for chunk in self.llm.stream(formatted_prompt):
+            active_llm = ChatOllama(
+                model=self.model_name,
+                keep_alive="24h",
+                options={
+                    "num_gpu": 99,
+                    "temperature": 0.0,
+                    "num_predict": predict_tokens,
+                    "num_ctx": 512,
+                    "num_thread": 8,
+                    "repeat_penalty": 1.1,
+                    "top_k": 10,
+                    "top_p": 0.7
+                }
+            )
+
+            for chunk in active_llm.stream(formatted_prompt):
                 chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
                 full_output += chunk_text
                 chunk_count += 1
@@ -369,11 +405,11 @@ Answer:"""
                 if fb_model != self.model_name:
                     try:
                         print(f"[STREAM] Attempting fallback model: {fb_model}")
-                        time.sleep(0.3)
+                        time.sleep(0.2)
                         fb_llm = ChatOllama(
                             model=fb_model,
                             keep_alive="24h",
-                            options={"num_ctx": 1024, "num_predict": 120, "temperature": 0.05, "num_gpu": 99}
+                            options={"num_ctx": 512, "num_predict": predict_tokens, "temperature": 0.0, "num_gpu": 99, "num_thread": 8}
                         )
                         for chunk in fb_llm.stream(formatted_prompt):
                             chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
