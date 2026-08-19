@@ -42,22 +42,22 @@ class RAGEngine:
         )
 
     def _check_feedback_correction(self, query_text: str) -> str | None:
-        """Check if Admin/Staff reviewed & corrected the answer for this question."""
+        """Check if Admin/Staff reviewed & corrected the answer in feedback section FIRST."""
         try:
             res = requests.get(
                 "http://127.0.0.1:8000/feedback-correction",
                 params={"question": query_text},
-                timeout=0.005
+                timeout=0.3
             )
             if res.status_code == 200:
                 data = res.json()
                 if data.get("found") and data.get("answer"):
                     ans = str(data.get("answer")).strip()
                     if ans and "cannot find information" not in ans.lower() and "sorry" not in ans.lower()[:20]:
-                        print(f"✨ [FEEDBACK OVERRIDE]: Found corrected answer for question '{query_text}'")
+                        print(f"✨ [FEEDBACK FIRST MATCH]: Found feedback answer for question '{query_text}'")
                         return ans
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"⚠️ [FEEDBACK CHECK]: {e}")
         return None
 
     def set_model(self, model_name: str):
@@ -141,7 +141,7 @@ class RAGEngine:
                 docs = self.vectorstore.similarity_search(query, k=k)
                 if not docs:
                     return "", []
-                return "\n\n".join([d.page_content for d in docs])[:500], docs
+                return "\n\n".join([d.page_content for d in docs])[:380], docs
             except Exception:
                 return "", []
 
@@ -187,7 +187,7 @@ class RAGEngine:
         strict_guard = f"If the answer is NOT mentioned in the Context below, reply EXACTLY: {FALLBACK_MESSAGE}"
 
         if is_diagram:
-            return f"""Answer using ONLY the context. Draw an ASCII diagram inside a code block then explain.
+            return f"""Answer using ONLY the context. Draw an ASCII diagram inside a code block, then explain briefly. End 2 lines below with Example:.
 {strict_guard}
 
 Context:
@@ -202,6 +202,7 @@ Step 1: ...
 Step 2: ...
 Final Answer: ...
 Use Unicode math symbols (√, ±, ², ³, ·) without raw LaTeX.
+End 2 lines below with Example:.
 {strict_guard}
 
 Context:
@@ -216,7 +217,8 @@ Structure:
 1. Definition & Core Concept
 2. Key Points / Architecture / Types
 3. Working Mechanism / Process
-4. Example: Practical example and application
+
+Example: Practical example and application (separated 2 lines below)
 {strict_guard}
 
 Context:
@@ -225,13 +227,16 @@ Context:
 Question: {query}
 Answer:"""
 
-        return f"""Answer using ONLY the provided context. Provide 4-5 lines of explanation followed by a practical Example.
+        return f"""Answer using ONLY the provided context.
+Provide 4-5 lines of clear explanation.
+Leave a blank line, then write Example: followed by a practical real-world example.
 {strict_guard}
 
 Context:
 {context_text}
 
 Question: {query}
+Answer:""": {query}
 Answer:"""
 
     def _clean_formatting(self, text: str) -> str:
