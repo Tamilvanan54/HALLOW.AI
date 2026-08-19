@@ -184,10 +184,17 @@ Question:
 
 Answer:"""
 
-        is_short = any(word in query_lower for word in ["short", "shortly", "in short", "summary", "one line", "quick"])
+        is_brief = any(word in query_lower for word in [
+            "brief", "briefly", "detail", "detailed", "elaborate", "depth",
+            "in-depth", "comprehensive", "in detail", "full", "broad", "explain with example"
+        ])
 
-        if is_short:
-            return f"""You are an educational AI assistant. Give a concise summary (2-3 key points) using the context.
+        if is_brief:
+            return f"""You are an educational study assistant. Provide a comprehensive, well-structured explanation using the retrieved context.
+Structure your answer with:
+1. Clear definition and core concept
+2. Key points / techniques / algorithms (using bullet points)
+3. A relevant real-world or practical example
 
 Context:
 {context_text}
@@ -197,11 +204,7 @@ Question:
 
 Answer:"""
 
-        return f"""You are an educational study assistant. Provide a clear, comprehensive, and well-structured explanation using the retrieved context.
-Structure your answer with:
-1. Clear definition and core concept
-2. Key points / techniques / algorithms (using bullet points)
-3. A relevant real-world or practical example
+        return f"""You are an educational AI assistant. Answer the question directly and concisely using ONLY the retrieved context (2-4 clear sentences or short key points). Keep it short and directly to the point.
 
 Context:
 {context_text}
