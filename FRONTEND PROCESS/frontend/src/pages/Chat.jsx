@@ -360,7 +360,7 @@ while (true) {
   }
 
   const chunk =
-    decoder.decode(value);
+    decoder.decode(value, { stream: true });
 
   aiAnswer += chunk;
 

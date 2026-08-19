@@ -324,10 +324,10 @@ def handle_query_stream(request: QueryRequest):
 
     return StreamingResponse(
         token_generator(),
-        media_type="text/plain",
+        media_type="text/plain; charset=utf-8",
         headers={
             "X-Accel-Buffering": "no",
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive"
         }
     )
