@@ -167,12 +167,11 @@ class RAGEngine:
     ):
         is_math, is_big, is_diagram = self._classify_query(query)
 
-        strict_guard = f"If the user question is NOT supported by facts in the Context, answer EXACTLY: {FALLBACK_MESSAGE}"
-
         if is_diagram:
-            return f"""Answer using ONLY the Context below. Draw an ASCII diagram inside a code block, then explain.
-Leave a blank line, then write Example: followed by a practical example.
-{strict_guard}
+            return f"""Answer the question using the Context below.
+Draw an ASCII diagram inside a code block, then explain briefly.
+
+Example: A practical example (separated 2 lines below)
 
 Context:
 {context_text}
@@ -181,13 +180,14 @@ Question: {query}
 Answer:"""
 
         if is_math:
-            return f"""Solve step-by-step using ONLY the Context below.
+            return f"""Solve the problem step-by-step using the Context below.
+Format:
 Step 1: ...
 Step 2: ...
 Final Answer: ...
 Use Unicode math symbols (√, ±, ², ³, ·) without raw LaTeX.
-Leave a blank line, then write Example: followed by a practical example.
-{strict_guard}
+
+Example: A short verification example (separated 2 lines below)
 
 Context:
 {context_text}
@@ -196,14 +196,13 @@ Question: {query}
 Solution:"""
 
         if is_big:
-            return f"""Provide a detailed 16-mark university answer using ONLY the Context below.
+            return f"""Provide a detailed 16-mark university answer using the Context below.
 Structure:
 1. Definition & Core Concept
 2. Key Points / Architecture / Types
 3. Working Mechanism / Process
 
 Example: Practical example and application (separated 2 lines below)
-{strict_guard}
 
 Context:
 {context_text}
@@ -211,10 +210,9 @@ Context:
 Question: {query}
 Answer:"""
 
-        return f"""Answer using ONLY the provided Context below.
-Provide 4-5 lines of clear explanation based on the Context.
-Leave a blank line, then write Example: followed by a practical real-world example.
-{strict_guard}
+        return f"""Provide 4-5 lines of clear explanation answering the question using the Context below.
+
+Example: Provide a practical real-world example (separated 2 lines below)
 
 Context:
 {context_text}
