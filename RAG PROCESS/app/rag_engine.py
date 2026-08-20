@@ -18,8 +18,8 @@ class RAGEngine:
         self.options = {
             "num_gpu": 0,
             "temperature": 0.0,
-            "num_predict": 200,
-            "num_ctx": 384,
+            "num_predict": 180,
+            "num_ctx": 240,
             "num_thread": 4,
             "repeat_penalty": 1.05,
             "top_k": 5,
@@ -67,8 +67,8 @@ class RAGEngine:
         print(f"[RAG] Requesting model '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 384
-        fast_options["num_predict"] = 200
+        fast_options["num_ctx"] = 240
+        fast_options["num_predict"] = 180
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 5
         fast_options["top_p"] = 0.5
@@ -132,11 +132,13 @@ class RAGEngine:
                 print(f"[RAG] Question '{query[:30]}' is NOT in RAG documents -> returning empty context")
                 return "", []
 
-            # Math formulas need 700 chars context to capture complete step-by-step working
-            context_limit = 700 if is_math else 380
+            # General queries use ultra-compact 280 char slice for sub-500ms TTFT
+            context_limit = 600 if is_math else 280
             context_text = "\n\n".join(
                 [doc.page_content for doc in valid_docs]
             )[:context_limit]
+
+            return context_text, valid_docs
 
             return context_text, valid_docs
 
