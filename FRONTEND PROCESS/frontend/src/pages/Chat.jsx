@@ -332,9 +332,8 @@ try {
 
   // Extract previous conversation turns for follow-up query context
   let recentHistory = "";
-  if (Array.isArray(messages) && messages.length > 1) {
+  if (Array.isArray(messages) && messages.length > 0) {
     recentHistory = messages
-      .slice(0, -1) // Exclude current message so history only contains previous turns
       .slice(-4)
       .filter((m) => m && m.text && typeof m.text === "string" && m.text !== "Sorry, I cannot find information regarding this question in the uploaded documents.")
       .map((m) => `${m.sender === "User" ? "User" : "Assistant"}: ${m.text.slice(0, 150)}`)
