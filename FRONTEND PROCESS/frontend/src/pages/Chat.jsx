@@ -8,704 +8,311 @@ import ChatInput from "../components/ChatInput";
 
 import useChatHistory from "../hooks/useChatHistory";
 
-
 export default function Chat() {
+  const [message, setMessage] = useState("");
+  const [model, setModel] = useState("Qwen");
+  const [messages, setMessages] = useState([]);
+  const [currentChatId, setCurrentChatId] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-
-  const [message,setMessage] =
-  useState("");
-
-
-  const [model,setModel] =
-useState("Qwen");
-
-
-  const [messages,setMessages] =
-  useState([]);
-
-
-  const [currentChatId,setCurrentChatId] =
-  useState(null);
-
-
-  const chatContainerRef =
-  useRef(null);
-
-
+  const chatContainerRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   const {
-  chatHistory,
-  addChat,
-  deleteChat,
-  togglePin,
-  fetchChats
-} = useChatHistory();
+    chatHistory,
+    addChat,
+    deleteChat,
+    togglePin,
+    fetchChats
+  } = useChatHistory();
 
-useEffect(() => {
-
-  localStorage.removeItem(
-    "activeChatId"
-  );
-
-}, []);
-
-
+  useEffect(() => {
+    localStorage.removeItem("activeChatId");
+  }, []);
 
   // AUTO SCROLL
-
-  useEffect(()=>{
-
-
-    if(chatContainerRef.current){
-
-      chatContainerRef.current.scrollTop =
-      chatContainerRef.current.scrollHeight;
-
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-
-
-  },[messages]);
-
-
-
-
-
-
+  }, [messages]);
 
   // NEW CHAT
-
-const startNewChat = ()=>{
-
-setMessages([]);
-
-setCurrentChatId(null);
-
-setMessage("");
-
-localStorage.removeItem(
-"activeChatId"
-);
-
-};
-
-
-
-
-
-
+  const startNewChat = () => {
+    setMessages([]);
+    setCurrentChatId(null);
+    setMessage("");
+    localStorage.removeItem("activeChatId");
+  };
 
   // DELETE CHAT
-
-  const handleDeleteChat = (chatId)=>{
-
-
+  const handleDeleteChat = (chatId) => {
     deleteChat(chatId);
+    if (currentChatId === chatId) {
+      startNewChat();
+    }
+  };
 
+  // SELECT CHAT
+  const selectChat = async (chatId) => {
+    setCurrentChatId(chatId);
+    localStorage.setItem("activeChatId", String(chatId));
 
+    try {
+      const response = await axios.get(`${API_BASE_URL}/get-messages`, {
+        params: { session_id: chatId }
+      });
 
-    if(currentChatId === chatId){
-
-
+      if (response.data.status && Array.isArray(response.data.messages)) {
+        const formattedMessages = response.data.messages.map((m) => ({
+          sender: m.sender === "user" ? "User" : "AI",
+          text: m.message
+        }));
+        setMessages(formattedMessages);
+      } else {
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error("Failed to load chat messages:", error);
       setMessages([]);
-
-
-      setCurrentChatId(null);
-
-
-      setMessage("");
-
     }
-
-
   };
 
-
-
-
-
-
-
-  // OPEN OLD CHAT
-
-  const openChat = async(chat)=>{
-
-
-    try{
-
-
-      const response = await axios.get(
-
-        `${API_BASE_URL}/get-messages`,
-
-        {
-
-          params:{
-
-            session_id:chat.id
-
-          }
-
+  // STOP GENERATION
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setIsGenerating(false);
+      setMessages((prev) => {
+        const updated = [...prev];
+        if (updated.length > 0 && updated[updated.length - 1].sender === "AI") {
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            streaming: false,
+            text: updated[updated.length - 1].text || "Generation stopped."
+          };
         }
-
-      );
-
-
-
-
-      const formattedMessages =
-
-      response.data.map((msg)=>({
-
-
-        sender:
-
-        msg.sender.toLowerCase() === "user"
-
-        ?
-
-        "User"
-
-        :
-
-        "AI",
-
-
-
-        text:
-
-        msg.message || msg.text
-
-
-      }));
-
-
-
-
-
-      setMessages(formattedMessages);
-
-
-
-      setCurrentChatId(chat.id);
-
-
-
-      setMessage("");
-
-
-
+        return updated;
+      });
     }
-
-
-    catch(error){
-
-
-      console.error(
-
-        "LOAD CHAT ERROR:",
-
-        error
-
-      );
-
-
-    }
-
-
   };
 
-
-
-
-
-
-
-
-
-
-  // SEND MESSAGE
-
-  const sendMessage = async()=>{
-
-
-    if(!message.trim())
-
-      return;
-
-
-
+  // SEND MESSAGE WITH SSE STREAMING
+  const sendMessage = async () => {
+    if (!message.trim() || isGenerating) return;
 
     const currentMessage = message;
-
-
-
-    // CLEAR INPUT
-
     setMessage("");
+    setIsGenerating(true);
 
+    const email = localStorage.getItem("email");
+    let chatId = currentChatId;
 
+    if (!chatId) {
+      const title = currentMessage.slice(0, 30);
+      chatId = await addChat(title);
+      if (!chatId) {
+        setIsGenerating(false);
+        return;
+      }
+      setCurrentChatId(chatId);
+      localStorage.setItem("activeChatId", String(chatId));
+    }
 
+    setMessages((prev) => [
+      ...prev,
+      { sender: "User", text: currentMessage },
+      {
+        sender: "AI",
+        text: "",
+        streaming: true,
+        statusText: "Searching uploaded study materials…",
+        displayNote: null,
+        sources: [],
+        confidence: "grounded"
+      }
+    ]);
 
-
-    let chatId = currentChatId || localStorage.getItem("activeChatId");
-
-
-
-
-
-
-    // CREATE CHAT IF NEW
-
-if(!chatId){
-
-  const newChat = await addChat(
-
-    currentMessage.length > 25
-      ? currentMessage.substring(0,25) + "..."
-      : currentMessage
-
-  );
-
-  await fetchChats();
-
-console.log("NEW CHAT:", newChat);
-
-console.log(
-  "CHAT HISTORY AFTER ADD:",
-  chatHistory
-);
-
-if(!newChat){
-
-  console.error("CHAT CREATE FAILED");
-
-  return;
-
-}
-
-  if(!newChat.id){
-
-    console.error("CHAT ID MISSING:", newChat);
-
-    return;
-
-  }
-
-  chatId = newChat.id;
-
-  setCurrentChatId(chatId);
-
-  localStorage.setItem(
-    "activeChatId",
-    String(chatId)
-  );
-
-}
-
-
-    // Immediately show User message AND AI Thinking placeholder at 0ms
-setMessages((prev) => [
-  ...prev,
-  {
-    sender: "User",
-    text: currentMessage
-  },
-  {
-    sender: "AI",
-    text: ""
-  }
-]);
-
-try {
-  // Save user message in background without blocking stream start
-  axios.post(
-    `${API_BASE_URL}/save-message`,
-    null,
-    {
+    // Save user message in background
+    axios.post(`${API_BASE_URL}/save-message`, null, {
       params: {
         session_id: chatId,
         sender: "User",
         message: currentMessage
       }
+    }).catch((e) => console.error("Failed to save user message:", e));
+
+    let recentHistory = "";
+    if (Array.isArray(messages) && messages.length > 0) {
+      recentHistory = messages
+        .slice(-4)
+        .filter((m) => m && m.text && typeof m.text === "string" && !m.text.includes("cannot find information"))
+        .map((m) => `${m.sender === "User" ? "User" : "Assistant"}: ${m.text.slice(0, 150)}`)
+        .join("\n");
     }
-  ).catch((e) => console.error("Failed to save user message:", e));
 
-  // Extract previous conversation turns for follow-up query context
-  let recentHistory = "";
-  if (Array.isArray(messages) && messages.length > 0) {
-    recentHistory = messages
-      .slice(-4)
-      .filter((m) => m && m.text && typeof m.text === "string" && m.text !== "Sorry, I cannot find information regarding this question in the uploaded documents.")
-      .map((m) => `${m.sender === "User" ? "User" : "Assistant"}: ${m.text.slice(0, 150)}`)
-      .join("\n");
-  }
+    abortControllerRef.current = new AbortController();
 
-  const response = await fetch(
-    `${RAG_BASE_URL}/api/query/stream`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        query: currentMessage,
-        history: recentHistory,
-        model_name: (model === "Llama" || model === "Llama 3.2") ? "llama3.2:1b" : "qwen2.5:1.5b"
-      })
-    }
-  );
+    try {
+      const response = await fetch(`${RAG_BASE_URL}/api/query/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: abortControllerRef.current.signal,
+        body: JSON.stringify({
+          query: currentMessage,
+          history: recentHistory,
+          model_name: (model === "Llama" || model === "Llama 3.2") ? "llama3.2:1b" : "qwen2.5:1.5b"
+        })
+      });
 
-const reader = response.body.getReader();
-const decoder = new TextDecoder();
-let fullTargetText = "";
-let displayedText = "";
-let streamFinished = false;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullTargetText = "";
+      let currentSources = [];
+      let displayNote = null;
+      let confidence = "grounded";
+      let statusText = "Searching uploaded study materials…";
+      let buffer = "";
 
-// Progressive word-by-word typewriter pump (renders smoothly in real-time)
-const typeWriterPromise = new Promise((resolve) => {
-  const ticker = setInterval(() => {
-    if (displayedText.length < fullTargetText.length) {
-      const remaining = fullTargetText.slice(displayedText.length);
-      const lag = remaining.length;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      // Adaptive step size: word-by-word typing with speed catch-up if buffer grows
-      let step = 1;
-      if (lag > 60) {
-        step = Math.min(lag, 8);
-      } else if (lag > 25) {
-        step = Math.min(lag, 4);
-      } else {
-        const nextSpace = remaining.search(/\s/);
-        step = (nextSpace !== -1 && nextSpace < 6) ? nextSpace + 1 : Math.min(2, remaining.length);
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+
+        for (const evt of events) {
+          if (!evt.trim()) continue;
+          const lines = evt.split("\n");
+          let eventType = "token";
+          let dataStr = "";
+
+          for (const line of lines) {
+            if (line.startswith("event: ") || line.startsWith("event:")) {
+              eventType = line.replace(/event:\s*/, "").trim();
+            } else if (line.startswith("data: ") || line.startsWith("data:")) {
+              dataStr = line.replace(/data:\s*/, "").trim();
+            }
+          }
+
+          if (!dataStr) continue;
+
+          try {
+            const dataObj = JSON.parse(dataStr);
+
+            if (eventType === "status") {
+              statusText = dataObj.message || "Searching uploaded study materials…";
+            } else if (eventType === "meta") {
+              if (dataObj.display_note) displayNote = dataObj.display_note;
+              if (dataObj.sources) currentSources = dataObj.sources;
+            } else if (eventType === "token") {
+              if (dataObj.token) fullTargetText += dataObj.token;
+            } else if (eventType === "final") {
+              if (dataObj.answer) fullTargetText = dataObj.answer;
+              if (dataObj.sources) currentSources = dataObj.sources;
+              if (dataObj.confidence) confidence = dataObj.confidence;
+              if (dataObj.display_note) displayNote = dataObj.display_note;
+            }
+          } catch (pErr) {
+            // Raw text chunk fallback
+            fullTargetText += dataStr;
+          }
+
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              sender: "AI",
+              text: fullTargetText,
+              streaming: true,
+              statusText: statusText,
+              displayNote: displayNote,
+              sources: currentSources,
+              confidence: confidence
+            };
+            return updated;
+          });
+        }
       }
 
-      displayedText += remaining.slice(0, step);
+      if (!fullTargetText || !fullTargetText.trim()) {
+        fullTargetText = "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.";
+        confidence = "refused";
+      }
 
       setMessages((prev) => {
         const updated = [...prev];
         updated[updated.length - 1] = {
           sender: "AI",
-          text: displayedText,
-          streaming: true
+          text: fullTargetText,
+          streaming: false,
+          statusText: null,
+          displayNote: displayNote,
+          sources: currentSources,
+          confidence: confidence
         };
         return updated;
       });
-    } else if (streamFinished) {
-      clearInterval(ticker);
-      resolve();
-    }
-  }, 12);
-});
 
-// Read incoming network stream chunks with instant first-token reveal
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  const chunk = decoder.decode(value, { stream: true });
-  fullTargetText += chunk;
-
-  // Reveal first word immediately for 0ms initial TTFT
-  if (!displayedText && fullTargetText) {
-    const firstSpace = fullTargetText.search(/\s/);
-    const initialCut = (firstSpace !== -1 && firstSpace < 12) ? firstSpace + 1 : Math.min(6, fullTargetText.length);
-    displayedText = fullTargetText.slice(0, initialCut);
-    setMessages((prev) => {
-      const updated = [...prev];
-      updated[updated.length - 1] = {
-        sender: "AI",
-        text: displayedText,
-        streaming: true
-      };
-      return updated;
-    });
-  }
-}
-streamFinished = true;
-
-// Await completion of word-by-word typing animation
-await typeWriterPromise;
-
-if (!fullTargetText || !fullTargetText.trim()) {
-  fullTargetText = "Sorry, I cannot find information regarding this question in the uploaded documents.";
-}
-
-setMessages((prev) => {
-  const updated = [...prev];
-  updated[updated.length - 1] = {
-    sender: "AI",
-    text: fullTargetText,
-    streaming: false
-  };
-  return updated;
-});
-
-// Save AI answer after streaming finishes
-if (fullTargetText && fullTargetText.trim()) {
-  await axios.post(
-    `${API_BASE_URL}/save-message`,
-    null,
-    {
-      params: {
-        session_id: chatId,
-        sender: "AI",
-        message: fullTargetText
+      // Save AI answer in database
+      if (fullTargetText && fullTargetText.trim()) {
+        axios.post(`${API_BASE_URL}/save-message`, null, {
+          params: {
+            session_id: chatId,
+            sender: "AI",
+            message: fullTargetText
+          }
+        }).catch((e) => console.error("Failed to save AI message:", e));
       }
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error("CHAT ERROR:", error);
+        setMessages((prev) => {
+          const updated = [...prev];
+          if (updated.length > 0 && updated[updated.length - 1].sender === "AI") {
+            updated[updated.length - 1] = {
+              sender: "AI",
+              text: "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.",
+              streaming: false,
+              confidence: "refused"
+            };
+          }
+          return updated;
+        });
+      }
+    } finally {
+      setIsGenerating(false);
     }
-  ).catch((e) => console.error("Failed to save AI message:", e));
-}
-
-}
-catch(error){
-
-  console.error(
-    "CHAT ERROR:",
-    error
-  );
-
-  setMessages((prev) => {
-    const updated = [...prev];
-    if (updated.length > 0 && updated[updated.length - 1].sender === "AI" && !updated[updated.length - 1].text) {
-      updated[updated.length - 1] = {
-        sender: "AI",
-        text: "Error getting response from AI"
-      };
-      return updated;
-    }
-    return prev;
-  });
-}
-
-
-
-
   };
 
   return (
-
-    <div
-
-      style={{
-
-        width:"100vw",
-
-        height:"100vh",
-
-        background:"#212121",
-
-        color:"white",
-
-        overflow:"hidden"
-
-      }}
-
-    >
-
-
-
+    <div style={{ display: "flex", height: "100vh", width: "100vw", background: "#212121", overflow: "hidden" }}>
       <MobileSidebar
-
         chatHistory={chatHistory}
-
         startNewChat={startNewChat}
-
+        selectChat={selectChat}
         deleteChat={handleDeleteChat}
-
-        openChat={openChat}
-
         togglePin={togglePin}
-
+        currentChatId={currentChatId}
       />
 
-
-
-
-
-      <div
-
-        style={{
-
-          position:"fixed",
-
-          top:"60px",
-
-          left:0,
-
-          right:0,
-
-          bottom:0,
-
-          display:"flex",
-
-          flexDirection:"column",
-
-          background:"#212121"
-
-        }}
-
-      >
-
-
-
-
-
-        <div
-
-          ref={chatContainerRef}
-
-          style={{
-
-            flex:1,
-
-            overflowY:"auto",
-
-            overflowX:"hidden"
-
-          }}
-
-        >
-
-
-
-
-          {
-
-          messages.length === 0
-
-          ?
-
-          (
-
-            <div
-
-              style={{
-
-                height:"100%",
-
-                display:"flex",
-
-                justifyContent:"center",
-
-                alignItems:"center",
-
-                flexDirection:"column"
-
-              }}
-
-            >
-
-
-              <h1
-
-                style={{
-
-                  fontSize:"42px",
-
-                  fontWeight:"600"
-
-                }}
-
-              >
-
-                What can I help with?
-
-              </h1>
-
-
-
-              <p
-
-                style={{
-
-                  color:"#9ca3af",
-
-                  fontSize:"18px"
-
-                }}
-
-              >
-
-                Ask anything and start learning
-
-              </p>
-
-
-
-            </div>
-
-
-          )
-
-
-          :
-
-
-          (
-
-            <ChatWindow
-
-              messages={messages}
-
-            />
-
-
-          )
-
-
-          }
-
-
-
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#212121", position: "relative" }}>
+        <div ref={chatContainerRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+          <ChatWindow messages={messages} />
         </div>
 
-
-
-
-
-
-
-        <div
-
-          style={{
-
-            padding:"15px 20px",
-
-            background:"#212121"
-
-          }}
-
-        >
-
-
-
+        <div style={{ padding: "15px 20px", background: "#212121" }}>
           <ChatInput
-
             message={message}
-
             setMessage={setMessage}
-
             sendMessage={sendMessage}
-
             model={model}
-
             setModel={setModel}
-
+            isGenerating={isGenerating}
+            stopGeneration={stopGeneration}
           />
-
-
-
         </div>
-
-
-
       </div>
-
-
-
-
     </div>
-
-
   );
-
-
 }

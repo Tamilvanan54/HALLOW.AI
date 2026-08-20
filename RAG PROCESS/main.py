@@ -1,6 +1,7 @@
 import glob
 import os
 import time
+import json
 import warnings
 from contextlib import asynccontextmanager
 
@@ -8,28 +9,27 @@ import fitz  # PyMuPDF
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_ollama import OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app.rag_engine import RAGEngine
+from app.rag_engine import RAGEngine, EXACT_REFUSAL_MESSAGE
+from app.spelling import extract_pdf_vocabulary
 
 # Suppress minor warnings for cleaner terminal output
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 warnings.filterwarnings("ignore")
-logging_level = os.environ.get("LOGLEVEL", "WARNING").upper()
 
 load_dotenv()
 
 # Global RAG Engine instance
 engine: RAGEngine | None = None
 CHROMA_PERSIST_DIR = "./chroma_db"
-
 
 def extract_pdf_documents(pdf_path: str) -> list[Document]:
     """Extract text from a PDF file on a per-page basis using PyMuPDF."""
@@ -52,8 +52,7 @@ def extract_pdf_documents(pdf_path: str) -> list[Document]:
         print(f"⚠️ Error extracting PDF text from {pdf_path}: {e}")
     return documents
 
-
-def load_all_pdfs() -> list[Document]:
+def load_all_pdfs() -> tuple[list[Document], set[str]]:
     """Find and chunk all PDFs across ./data, ./uploads, ../uploads, and project root folders."""
     search_dirs = ["./data", "../uploads", "./uploads", "../BACKEND PROCESS/uploads", "..", "."]
     pdf_files = []
@@ -68,7 +67,7 @@ def load_all_pdfs() -> list[Document]:
 
     if not pdf_files:
         print("❌ No PDF files found in search directories!")
-        return []
+        return [], set()
 
     print(f"📄 Found {len(pdf_files)} PDF documents: {[os.path.basename(f) for f in pdf_files]}")
 
@@ -79,10 +78,12 @@ def load_all_pdfs() -> list[Document]:
     )
 
     split_docs = []
+    raw_page_docs = []
     print("\n⏳ Auto-indexing all available documents...")
     for pdf_path in pdf_files:
         try:
             page_docs = extract_pdf_documents(pdf_path)
+            raw_page_docs.extend(page_docs)
             file_name = os.path.basename(pdf_path)
             for page_doc in page_docs:
                 chunks = text_splitter.split_documents([page_doc])
@@ -91,11 +92,11 @@ def load_all_pdfs() -> list[Document]:
         except Exception as e:
             print(f"   ❌ Error loading '{pdf_path}': {e}")
 
-    print(f"   ✂️ Split documents into {len(split_docs)} balanced chunks.")
-    return split_docs
+    pdf_vocab = extract_pdf_vocabulary(raw_page_docs)
+    print(f"   ✂️ Split documents into {len(split_docs)} balanced chunks. Vocabulary size: {len(pdf_vocab)} terms.")
+    return split_docs, pdf_vocab
 
-
-def build_unified_vectorstore() -> Chroma | None:
+def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
     """Build or refresh persistent Chroma vector store with fast embeddings."""
     print("\n⏳ Initializing embeddings for vector database...")
     try:
@@ -113,7 +114,7 @@ def build_unified_vectorstore() -> Chroma | None:
         print(f"⚠️ Fast HuggingFaceEmbeddings unavailable ({e}). Falling back to OllamaEmbeddings...")
         embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
-    docs = load_all_pdfs()
+    docs, pdf_vocab = load_all_pdfs()
 
     # Clear stale database to ensure full fresh sync of uploaded documents
     if os.path.exists(CHROMA_PERSIST_DIR):
@@ -130,7 +131,7 @@ def build_unified_vectorstore() -> Chroma | None:
 
     if not docs:
         print("ℹ️ No PDF documents found. RAG Engine initialized with empty knowledge base.")
-        return vectorstore
+        return vectorstore, set()
 
     batch_size = 100
     total_docs = len(docs)
@@ -149,19 +150,20 @@ def build_unified_vectorstore() -> Chroma | None:
             vectorstore.add_documents(documents=batch)
 
     print("✅ Vector database initialized and persisted successfully!")
-    return vectorstore
-
+    return vectorstore, pdf_vocab
 
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     global engine
     print("⏳ Loading Vectorstore & RAG Engine...")
-    vectorstore = build_unified_vectorstore()
+    vectorstore, pdf_vocab = build_unified_vectorstore()
+
+    model_name = os.getenv("RAG_MODEL_NAME", "qwen2.5:1.5b")
 
     if vectorstore:
         engine = RAGEngine(
             vectorstore=vectorstore,
-            model_name="qwen2.5:1.5b",
+            model_name=model_name,
             model_kwargs={
                 "keep_alive": "24h",
                 "options": {
@@ -175,6 +177,7 @@ async def lifespan(app_instance: FastAPI):
                 }
             }
         )
+        engine.pdf_vocabulary = pdf_vocab
         # Pre-warm: force-load model weights into RAM so first query has 0s cold-start
         print("⏳ Pre-warming LLM model into CPU RAM...")
         try:
@@ -185,10 +188,8 @@ async def lifespan(app_instance: FastAPI):
         print("✅ RAG Engine Microservice is ready!")
     yield
 
-
 app = FastAPI(title="RAG Microservice API", lifespan=lifespan)
 
-# Enable CORS for external frontend or backend service integrations
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -197,22 +198,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 from typing import Any
 
 class QueryRequest(BaseModel):
-    query: str = Field(..., examples=["What is machine learning?"])
-    model_name: str = Field(default="qwen2.5:3b", examples=["qwen2.5:3b"])
+    query: str = Field(..., examples=["What is Machine Learning?"])
+    model_name: str | None = Field(default="qwen2.5:1.5b")
     history: Any | None = None
-
 
 class IngestRequest(BaseModel):
     filename: str | None = None
 
-
 class DeleteDocRequest(BaseModel):
     filename: str
-
 
 def reload_vectorstore():
     """Rebuild Chroma vector store to reflect current PDFs in ./data folder."""
@@ -231,7 +228,6 @@ def reload_vectorstore():
     except Exception:
         embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
-    # Clear old chroma directory if needed to remove deleted documents completely
     if os.path.exists(CHROMA_PERSIST_DIR):
         try:
             import shutil
@@ -239,7 +235,7 @@ def reload_vectorstore():
         except Exception as e:
             print(f"⚠️ Warning clearing chroma_db: {e}")
 
-    docs = load_all_pdfs()
+    docs, pdf_vocab = load_all_pdfs()
     if not docs:
         print("⚠️ No documents remaining in ./data folder.")
         new_vectorstore = Chroma(
@@ -255,31 +251,28 @@ def reload_vectorstore():
 
     if engine:
         engine.vectorstore = new_vectorstore
+        engine.pdf_vocabulary = pdf_vocab
     else:
-        engine = RAGEngine(vectorstore=new_vectorstore, model_name="qwen2.5:3b")
+        engine = RAGEngine(vectorstore=new_vectorstore, model_name=os.getenv("RAG_MODEL_NAME", "qwen2.5:1.5b"))
+        engine.pdf_vocabulary = pdf_vocab
 
     print(f"✅ Vector database successfully updated with {len(docs)} document chunks.")
     return len(docs)
-
 
 @app.get("/health")
 def health_check():
     """Health check endpoint to verify engine readiness."""
     return {"status": "ok", "engine_ready": engine is not None}
 
-
 @app.post("/api/ingest")
 def handle_ingest(request: IngestRequest | None = None):
     """Ingest newly uploaded documents from ./data folder into Chroma vectorstore."""
     global engine
     if not engine:
-        raise HTTPException(
-            status_code=503, detail="RAG Engine is not initialized"
-        )
+        raise HTTPException(status_code=503, detail="RAG Engine is not initialized")
 
     chunks_count = reload_vectorstore()
     return {"status": "success", "message": "Documents ingested successfully", "chunks": chunks_count}
-
 
 @app.post("/api/delete-doc")
 def handle_delete_doc(request: DeleteDocRequest):
@@ -299,56 +292,50 @@ def handle_delete_doc(request: DeleteDocRequest):
     chunks_count = reload_vectorstore()
     return {"status": "success", "message": f"Deleted {filename} and updated vectorstore", "remaining_chunks": chunks_count}
 
-
 @app.post("/api/query")
 def handle_query(request: QueryRequest):
-    """Standard synchronized RAG response returning full answer and source citations."""
+    """Standard synchronized RAG response returning full structured response metadata."""
     if not engine:
-        raise HTTPException(
-            status_code=503, detail="RAG Engine is not initialized"
-        )
+        raise HTTPException(status_code=503, detail="RAG Engine is not initialized")
 
-    engine.set_model(request.model_name)
+    if request.model_name:
+        engine.set_model(request.model_name)
 
-    result = engine.query(request.query)
-    answer = result.get("answer", "")
+    # Collect SSE output generator into structured JSON
+    events = list(engine.query_stream_sse(request.query, history=request.history))
+    
+    # Parse final event data
+    final_data = {}
+    for event_str in reversed(events):
+        if "event: final" in event_str:
+            data_line = [l for l in event_str.split("\n") if l.startswith("data: ")][0]
+            final_data = json.loads(data_line.replace("data: ", ""))
+            break
 
-    sources = [
-        {
-            "source": doc.metadata.get("source", "Unknown"),
-            "page": doc.metadata.get("page", "N/A"),
-            "content": doc.page_content,
+    if not final_data:
+        final_data = {
+            "answer": EXACT_REFUSAL_MESSAGE,
+            "sources": [],
+            "confidence": "refused",
+            "refusal_reason": "unknown_error",
+            "corrected_query": None
         }
-        for doc in result.get("context", [])
-    ]
 
-    return {"answer": answer, "sources": sources}
-
+    return JSONResponse(content=final_data)
 
 @app.post("/api/query/stream")
+@app.post("/api/query/sse")
 def handle_query_stream(request: QueryRequest):
-    """Streaming response returning generated answer tokens as they arrive."""
+    """SSE streaming endpoint returning status, meta, tokens, and final response metadata."""
     if not engine:
-        raise HTTPException(
-            status_code=503, detail="RAG Engine is not initialized"
-        )
+        raise HTTPException(status_code=503, detail="RAG Engine is not initialized")
 
-    engine.set_model(request.model_name)
-
-    history_str = ""
-    if request.history:
-        if isinstance(request.history, list):
-            history_str = "\n".join([str(h) for h in request.history if h])
-        else:
-            history_str = str(request.history)
-
-    def token_generator():
-        for chunk in engine.query_stream(request.query, history=history_str):
-            yield chunk
+    if request.model_name:
+        engine.set_model(request.model_name)
 
     return StreamingResponse(
-        token_generator(),
-        media_type="text/plain; charset=utf-8",
+        engine.query_stream_sse(request.query, history=request.history),
+        media_type="text/event-stream",
         headers={
             "X-Accel-Buffering": "no",
             "Cache-Control": "no-cache, no-transform",
@@ -356,13 +343,6 @@ def handle_query_stream(request: QueryRequest):
         }
     )
 
-
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8001,
-        reload=False
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=False)

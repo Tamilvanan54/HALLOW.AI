@@ -464,26 +464,73 @@ def update_feedback(
 async def upload_pdf(
     pdf: UploadFile = File(...)
 ):
+    import fitz  # PyMuPDF
+    import re
+
+    # 1. File extension validation
+    if not pdf.filename or not pdf.filename.lower().endswith(".pdf"):
+        return {
+            "status": False,
+            "message": "Invalid file type. Only PDF documents (.pdf) are allowed.",
+            "filename": pdf.filename
+        }
+
+    # 2. Filename sanitization
+    safe_filename = re.sub(r'[^a-zA-Z0-9_.-]', '_', os.path.basename(pdf.filename))
+
+    content = await pdf.read()
+
+    # 3. File size validation (Max 50MB)
+    if len(content) == 0:
+        return {
+            "status": False,
+            "message": "The uploaded PDF file is empty (0 bytes).",
+            "filename": safe_filename
+        }
+    if len(content) > 50 * 1024 * 1024:
+        return {
+            "status": False,
+            "message": "File size exceeds the 50MB limit.",
+            "filename": safe_filename
+        }
+
+    # 4. Scanned PDF text extractability check
+    try:
+        doc = fitz.open(stream=content, filetype="pdf")
+        total_text = "".join(page.get_text("text").strip() for page in doc)
+        page_count = len(doc)
+        doc.close()
+        if len(total_text) < 20:
+            print(f"⚠️ Scanned PDF detected (text length: {len(total_text)}): {safe_filename}")
+            return {
+                "status": False,
+                "message": "Scanned PDF with no extractable text detected. Please upload a PDF with readable text.",
+                "filename": safe_filename
+            }
+    except Exception as e:
+        print(f"⚠️ Invalid PDF document: {e}")
+        return {
+            "status": False,
+            "message": f"Invalid or corrupted PDF file: {str(e)}",
+            "filename": safe_filename
+        }
+
     if not os.path.exists("uploads"):
         os.makedirs("uploads")
 
-    file_path = f"uploads/{pdf.filename}"
-    content = await pdf.read()
-
+    file_path = f"uploads/{safe_filename}"
     with open(file_path, "wb") as buffer:
         buffer.write(content)
     print(f"✅ Saved to backend uploads: {os.path.abspath(file_path)}")
 
-    # Save directly to RAG PROCESS data folder using absolute path
+    # Save directly to RAG PROCESS data folder
     backend_dir = os.path.abspath(os.path.dirname(__file__))
     rag_data_dir = os.path.abspath(os.path.join(backend_dir, "..", "RAG PROCESS", "data"))
-    print(f"📂 RAG data directory resolved to: {rag_data_dir}")
 
     if not os.path.exists(rag_data_dir):
         os.makedirs(rag_data_dir)
-        print(f"📂 Created RAG data directory: {rag_data_dir}")
 
-    rag_file_path = os.path.join(rag_data_dir, pdf.filename)
+    rag_file_path = os.path.join(rag_data_dir, safe_filename)
     try:
         with open(rag_file_path, "wb") as rag_buffer:
             rag_buffer.write(content)
@@ -492,31 +539,35 @@ async def upload_pdf(
         print(f"❌ Failed to save to RAG data: {e}")
         return {
             "status": False,
-            "message": f"Failed to save PDF to RAG: {str(e)}",
-            "filename": pdf.filename
+            "message": f"Failed to save PDF to RAG data: {str(e)}",
+            "filename": safe_filename
         }
 
-    # Trigger ingest on RAG service - wait for it to complete
+    # Trigger ingest on RAG service
     ingest_success = False
+    chunks_count = 0
     try:
-        print(f"⏳ Calling RAG ingest for {pdf.filename}...")
+        print(f"⏳ Calling RAG ingest for {safe_filename}...")
         resp = requests.post(
             "http://127.0.0.1:8001/api/ingest",
-            json={"filename": pdf.filename},
+            json={"filename": safe_filename},
             timeout=120
         )
         if resp.status_code == 200:
             ingest_success = True
-            print(f"✅ RAG ingest success for {pdf.filename}: {resp.json()}")
+            chunks_count = resp.json().get("chunks", 0)
+            print(f"✅ RAG ingest success for {safe_filename}: {resp.json()}")
         else:
-            print(f"⚠️ RAG ingest failed for {pdf.filename}: {resp.status_code} {resp.text}")
+            print(f"⚠️ RAG ingest failed for {safe_filename}: {resp.status_code} {resp.text}")
     except Exception as e:
-        print(f"⚠️ RAG ingest error for {pdf.filename}: {e}")
+        print(f"⚠️ RAG ingest error for {safe_filename}: {e}")
 
     return {
         "status": True,
         "message": "PDF Uploaded and Processed Successfully" if ingest_success else "PDF Uploaded but RAG processing failed",
-        "filename": pdf.filename,
+        "filename": safe_filename,
+        "pages": page_count,
+        "chunks": chunks_count,
         "ingested": ingest_success
     }
 

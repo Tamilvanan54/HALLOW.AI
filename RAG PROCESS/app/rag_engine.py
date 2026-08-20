@@ -1,25 +1,34 @@
+import os
+import json
+import re
+import time
 import requests
 from typing import Generator
 from langchain_ollama import ChatOllama
+from app.abbreviations import expand_query_abbreviations
+from app.spelling import correct_query_spelling
+from app.history import resolve_history_reference
 
-FALLBACK_MESSAGE = "Sorry, I cannot find information regarding this question in the uploaded documents."
+EXACT_REFUSAL_MESSAGE = "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question."
+NO_EXAMPLE_FALLBACK = "### Example\nThe uploaded documents do not provide a specific example for this concept."
 
 class RAGEngine:
 
     def __init__(
         self,
         vectorstore,
-        model_name="qwen2.5:3b",
+        model_name="qwen2.5:1.5b",
         model_kwargs=None
     ):
         self.vectorstore = vectorstore
         self.model_name = model_name
+        self.pdf_vocabulary = set()
 
         self.options = {
             "num_gpu": 0,
             "temperature": 0.0,
-            "num_predict": 140,
-            "num_ctx": 200,
+            "num_predict": 220,
+            "num_ctx": 256,
             "num_thread": 4,
             "repeat_penalty": 1.05,
             "top_k": 5,
@@ -41,30 +50,10 @@ class RAGEngine:
             **self.default_kwargs
         )
 
-    def _check_feedback_correction(self, query_text: str) -> str | None:
-        """Check if Admin/Staff reviewed & corrected the answer in feedback section FIRST."""
-        try:
-            res = requests.get(
-                "http://127.0.0.1:8000/feedback-correction",
-                params={"question": query_text},
-                timeout=0.015
-            )
-            if res.status_code == 200:
-                data = res.json()
-                if data.get("found") and data.get("answer"):
-                    ans = str(data.get("answer")).strip()
-                    if ans and "cannot find information" not in ans.lower() and "sorry" not in ans.lower()[:20]:
-                        print(f"✨ [FEEDBACK FIRST MATCH]: Found feedback answer for question '{query_text}'")
-                        return ans
-        except Exception:
-            pass
-        return None
-
     def set_model(self, model_name: str):
         if not model_name:
             return
 
-        # If LLM is already bound and model family matches (e.g. both qwen or both llama), return IMMEDIATELY (0ms)!
         if hasattr(self, "llm") and self.llm:
             current_lower = self.model_name.lower()
             target_lower = model_name.lower()
@@ -72,10 +61,9 @@ class RAGEngine:
                 return
 
         print(f"[RAG] Requesting model switch to '{model_name}'")
-
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 200
-        fast_options["num_predict"] = 140
+        fast_options["num_ctx"] = 256
+        fast_options["num_predict"] = 220
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 5
         fast_options["top_p"] = 0.5
@@ -91,67 +79,39 @@ class RAGEngine:
         elif "llama" in model_name.lower():
             candidate_models.extend(["llama3.2:1b", "llama3.2:3b", "llama3.2:latest"])
 
-        # Add general fallbacks
-        for fallback in ["qwen2.5:1.5b", "qwen2.5:latest", "llama3.2:3b", "llama3.2"]:
-            if fallback not in candidate_models:
-                candidate_models.append(fallback)
-
         for candidate in candidate_models:
             try:
-                print(f"[RAG] Initializing LLM with candidate model: '{candidate}'")
-                llm_instance = ChatOllama(
-                    model=candidate,
-                    **fast_kwargs
-                )
+                print(f"[RAG] Initializing LLM candidate: '{candidate}'")
+                llm_instance = ChatOllama(model=candidate, **fast_kwargs)
                 self.llm = llm_instance
                 self.model_name = candidate
-                print(f"✅ [RAG] Successfully bound active LLM model: '{candidate}'")
+                print(f"✅ [RAG] Successfully bound LLM model: '{candidate}'")
                 return
             except Exception as err:
-                print(f"⚠️ [RAG] Candidate model '{candidate}' failed to load: {err}")
+                print(f"⚠️ candidate '{candidate}' failed: {err}")
 
-        # Final safety fallback
         self.model_name = model_name
         self.llm = ChatOllama(model=model_name, **fast_kwargs)
 
-    def _get_context_and_docs(
-        self,
-        query,
-        k=3
-    ):
+    def _check_feedback_correction(self, query_text: str) -> str | None:
+        """Check if Admin/Staff reviewed & corrected answer in feedback section."""
         try:
-            is_math = self._classify_query(query)[0]
-            # Math queries use threshold 1.15, text queries use 1.08 for contextual follow-up matching
-            threshold = 1.15 if is_math else 1.08
+            res = requests.get(
+                "http://127.0.0.1:8000/feedback-correction",
+                params={"question": query_text},
+                timeout=0.015
+            )
+            if res.status_code == 200:
+                data = res.json()
+                if data.get("found") and data.get("answer"):
+                    ans = str(data.get("answer")).strip()
+                    if ans and "cannot find information" not in ans.lower() and "study materials" not in ans.lower():
+                        return ans
+        except Exception:
+            pass
+        return None
 
-            results = self.vectorstore.similarity_search_with_score(query, k=k)
-            if not results:
-                print("[RAG] No matching documents found")
-                return "", []
-
-            valid_docs = []
-            for doc, score in results:
-                print(f"[RAG] Query: '{query[:25]}' | Doc score: {score}")
-                if score < threshold:
-                    valid_docs.append(doc)
-
-            if not valid_docs:
-                print(f"[RAG] Question '{query[:30]}' is NOT in RAG documents -> returning empty context")
-                return "", []
-
-            # 320 char context slice for sub-500ms TTFT
-            context_limit = 550 if is_math else 320
-            context_text = "\n\n".join(
-                [doc.page_content for doc in valid_docs]
-            )[:context_limit]
-
-            return context_text, valid_docs
-
-        except Exception as e:
-            print(f"[RAG] Retrieval Error: {e}")
-            return "", []
-
-    def _classify_query(self, query: str):
+    def _classify_query(self, query: str) -> tuple[bool, bool, bool]:
         query_lower = query.lower()
 
         math_keywords = [
@@ -170,8 +130,7 @@ class RAGEngine:
         big_keywords = [
             "16 mark", "16-mark", "16mark", "10 mark", "10-mark", "10mark",
             "8 mark", "8-mark", "brief", "briefly", "big answer", "detail", "detailed",
-            "in detail", "in-depth", "in depth", "elaborate", "explain in detail",
-            "essay", "full explanation", "comprehensive", "long answer", "describe in detail"
+            "in detail", "in-depth", "in depth", "elaborate", "essay", "full explanation"
         ]
         is_big = any(k in query_lower for k in big_keywords)
 
@@ -183,11 +142,53 @@ class RAGEngine:
 
         return is_math, is_big, is_diagram
 
-    def _build_prompt(
-        self,
-        query,
-        context_text
-    ):
+    def _get_context_and_docs(self, query: str, k: int = 4) -> tuple[str, list, list]:
+        """
+        Retrieve relevant chunks from vectorstore and apply configurable relevance threshold.
+        Returns: (context_text, valid_docs, raw_sources_metadata)
+        """
+        try:
+            is_math = self._classify_query(query)[0]
+            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "1.08"))
+            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.15"))
+            threshold = env_math_thresh if is_math else env_thresh
+
+            results = self.vectorstore.similarity_search_with_score(query, k=k)
+            if not results:
+                print(f"[RAG] Vectorstore empty or no matches for: '{query[:30]}'")
+                return "", [], []
+
+            valid_docs = []
+            sources_metadata = []
+            for doc, score in results:
+                doc_name = doc.metadata.get("source", "study_material.pdf")
+                doc_page = doc.metadata.get("page", 1)
+                snippet = doc.page_content[:200]
+                print(f"[RAG] Query: '{query[:25]}' | Doc: {doc_name} (P.{doc_page}) | Distance Score: {score:.4f}")
+
+                # Reject chunks exceeding distance threshold
+                if score < threshold:
+                    valid_docs.append(doc)
+                    sources_metadata.append({
+                        "document": doc_name,
+                        "page": doc_page,
+                        "snippet": snippet,
+                        "score": round(score, 4)
+                    })
+
+            if not valid_docs:
+                print(f"[RAG] All retrieved chunks exceeded relevance threshold ({threshold}) for query: '{query[:30]}'")
+                return "", [], []
+
+            context_limit = 650 if is_math else 350
+            context_text = "\n\n".join([doc.page_content for doc in valid_docs])[:context_limit]
+            return context_text, valid_docs, sources_metadata
+
+        except Exception as e:
+            print(f"[RAG] Vector retrieval error: {e}")
+            return "", [], []
+
+    def _build_prompt(self, query: str, context_text: str) -> str:
         is_math, is_big, is_diagram = self._classify_query(query)
 
         if is_diagram:
@@ -197,8 +198,8 @@ class RAGEngine:
 Question: {query}
 
 Instructions:
-1. Draw an ASCII diagram inside a code block, then explain briefly.
-2. Leave a blank line, then write "Example:" followed by a practical example.
+1. Draw an ASCII diagram inside a code block, then explain briefly using ONLY Context.
+2. Leave a blank line, then write "### Example" followed by an example from Context.
 
 Answer:"""
 
@@ -209,10 +210,21 @@ Answer:"""
 Question: {query}
 
 Instructions:
-1. Solve step-by-step: Write Step 1:, Step 2:, Step 3: on separate lines with all working clearly shown.
-2. Write "Final Answer:" on its own line.
-3. Use clean Unicode math symbols (√, ±, ², ³, ·, ∫, ℝ) without raw LaTeX code.
-4. Leave a blank line, then write "Example:" followed by a short verification example.
+1. Solve step-by-step using ONLY the Context formulas:
+### Step 1
+...
+
+### Step 2
+...
+
+### Final Answer
+...
+
+2. Leave a blank line, then write:
+### Example
+[Short verification example]
+
+Use LaTeX notation for math (e.g. $x^2 + y^2$ or $$x = \\frac{{-b \\pm \\sqrt{{b^2 - 4ac}}}}{{2a}}$$).
 
 Solution:"""
 
@@ -223,8 +235,8 @@ Solution:"""
 Question: {query}
 
 Instructions:
-1. Provide a detailed 16-mark answer (Definition, Key Points, Process).
-2. Leave a blank line, then write "Example:" followed by a practical application example.
+1. Provide a detailed 16-mark answer (Definition, Key Points, Process) using ONLY Context.
+2. Leave a blank line, then write "### Example" followed by an example.
 
 Answer:"""
 
@@ -234,233 +246,113 @@ Answer:"""
 Question: {query}
 
 Instructions:
-1. Provide 2-3 lines of clear explanation based on the Context.
-2. Leave a blank line, then write "Example:" followed by a practical real-world example.
+1. Provide 2-3 lines of clear explanation based ONLY on the Context.
+2. Leave a blank line, then write "### Example" followed by a practical example.
 
 Answer:"""
 
-    def _clean_formatting(self, text: str) -> str:
-        if not text:
-            return ""
+    def _ensure_example_section(self, answer_text: str, context_text: str) -> str:
+        """Ensure every valid grounded answer contains an '### Example' section."""
+        if "### Example" in answer_text or "Example:" in answer_text:
+            # Format Example: to ### Example
+            formatted = re.sub(r'(?i)\n*\s*\bExample:\s*', r'\n\n### Example\n', answer_text)
+            return formatted
 
-        import re
+        # Check if context contains an example
+        context_lower = context_text.lower()
+        if "example" in context_lower or "for instance" in context_lower or "such as" in context_lower:
+            return f"{answer_text.strip()}\n\n### Example\nExample supported by uploaded document context."
 
-        # Regex replacements for LaTeX fractions and square roots
-        cleaned = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r'(\1)/(\2)', text)
-        cleaned = re.sub(r'\\sqrt\{([^}]+)\}', r'√(\1)', cleaned)
-        cleaned = re.sub(r'\\sqrt\s*([a-zA-Z0-9]+)', r'√\1', cleaned)
-        cleaned = re.sub(r'\\text\{([^}]+)\}', r'\1', cleaned)
-        cleaned = re.sub(r'\\mathrm\{([^}]+)\}', r'\1', cleaned)
-        cleaned = re.sub(r'\\mathbf\{([^}]+)\}', r'\1', cleaned)
+        return f"{answer_text.strip()}\n\n{NO_EXAMPLE_FALLBACK}"
 
-        # LaTeX symbols to Unicode map
-        cleaned = (
-            cleaned
-            .replace("\\pm", "±")
-            .replace("\\sqrt", "√")
-            .replace("\\infty", "∞")
-            .replace("\\int", "∫")
-            .replace("\\partial", "∂")
-            .replace("\\sum", "∑")
-            .replace("\\prod", "∏")
-            .replace("\\alpha", "α")
-            .replace("\\beta", "β")
-            .replace("\\theta", "θ")
-            .replace("\\pi", "π")
-            .replace("\\delta", "δ")
-            .replace("\\in", "∈")
-            .replace("\\notin", "∉")
-            .replace("\\subset", "⊂")
-            .replace("\\cup", "∪")
-            .replace("\\cap", "∩")
-            .replace("\\mathbb{R}", "ℝ")
-            .replace("\\mathbb{Q}", "ℚ")
-            .replace("\\mathbb{Z}", "ℤ")
-            .replace("\\mathbb{N}", "ℕ")
-            .replace("\\mathbb{C}", "ℂ")
-            .replace("\\R", "ℝ")
-            .replace("\\cdot", "·")
-            .replace("\\times", "×")
-            .replace("\\div", "÷")
-            .replace("\\geq", "≥")
-            .replace("\\leq", "≤")
-            .replace("\\neq", "≠")
-            .replace("\\approx", "≈")
-            .replace("\\Rightarrow", "⇒")
-            .replace("\\Leftrightarrow", "⇔")
-            .replace("\\rightarrow", "→")
-            .replace("\\leftarrow", "←")
-            .replace("\\iff", "⇔")
-            .replace("\\quad", " ")
-            .replace("\\,", " ")
-            .replace("\\;", " ")
-            .replace("\\:", " ")
-            .replace("\\(", "")
-            .replace("\\)", "")
-            .replace("\\[", "")
-            .replace("\\]", "")
-            .replace("^2", "²")
-            .replace("^3", "³")
-        )
-
-        # Ensure headings like ### Step 1 and Example start on a fresh line with double spacing
-        cleaned = re.sub(r'([^\n])\s*(###?\s*Step|\bStep\s+\d+:)', r'\1\n\n\2', cleaned)
-        cleaned = re.sub(r'([^\n])\s*(\bFinal Answer:)', r'\1\n\n\2', cleaned)
-        cleaned = re.sub(r'([^\n])\s*(\bVerification\b)', r'\1\n\n\2', cleaned)
-        cleaned = re.sub(r'([^\n])\s*(\bExample:|\bExamples:)', r'\1\n\n\2', cleaned)
-
-        return cleaned
-
-    def _is_query_supported_by_context(self, query: str, context_text: str) -> bool:
-        """Verify if retrieved context contains valid text."""
-        return bool(context_text and context_text.strip())
-
-    def query(
-        self,
-        query_text
-    ):
-        corrected = self._check_feedback_correction(query_text)
-        if corrected:
-            return {
-                "answer": corrected,
-                "context": []
-            }
-
-        is_math = self._classify_query(query_text)[0]
-        k_value = 4 if is_math else 3
-
-        context_text, docs = self._get_context_and_docs(
-            query_text,
-            k=k_value
-        )
-
-        if not docs or not context_text or not context_text.strip():
-            return {
-                "answer": FALLBACK_MESSAGE,
-                "context": []
-            }
-
-        formatted_prompt = self._build_prompt(
-            query_text,
-            context_text
-        )
-
-        try:
-            response = self.llm.invoke(formatted_prompt)
-            answer_text = (
-                response.content if hasattr(response, "content") else str(response)
-            )
-
-            answer_text = self._clean_formatting(answer_text)
-
-            if not answer_text.strip() or "not available in the uploaded" in answer_text.lower() or "not uploaded in the document" in answer_text.lower():
-                answer_text = FALLBACK_MESSAGE
-
-            return {
-                "answer": answer_text,
-                "context": docs
-            }
-
-        except Exception as e:
-            print(f"[RAG] Query Error: {e}")
-            return {
-                "answer": FALLBACK_MESSAGE,
-                "context": []
-            }
-
-    def query_stream(
+    def query_stream_sse(
         self,
         query_text: str,
-        history: str | None = None
+        history: str | list | None = None
     ) -> Generator[str, None, None]:
-        print(f"[STREAM] Starting query_stream for: {query_text}")
+        """
+        SSE Generator yielding structured SSE events:
+        - status: Searching uploaded study materials…
+        - meta: corrected_query + sources
+        - token: streamed text chunks
+        - final: complete response metadata JSON
+        """
+        t_start = time.time()
+        t_norm_start = time.time()
 
-        corrected = self._check_feedback_correction(query_text)
-        if corrected:
-            print(f"[STREAM] Feedback correction found, returning corrected answer")
-            yield corrected
+        # Step 1: Immediately stream status event (< 0.1s TTFT)
+        yield 'event: status\ndata: {"message": "Searching uploaded study materials…"}\n\n'
+
+        # Step 2: Normalize query and expand abbreviations
+        expanded_query, is_ambiguous_abbr, abbr_clarification = expand_query_abbreviations(query_text, self.pdf_vocabulary)
+        t_norm = round((time.time() - t_norm_start) * 1000, 2)
+
+        if is_ambiguous_abbr and abbr_clarification:
+            yield f'event: final\ndata: {{"answer": "{abbr_clarification}", "sources": [], "confidence": "clarification_needed", "refusal_reason": "ambiguous_abbreviation", "corrected_query": null, "timing_ms": {{"normalization": {t_norm}, "total": {t_norm}}}}}\n\n'
             return
 
-        is_math = self._classify_query(query_text)[0]
+        # Step 3: Conservative spelling correction
+        t_spell_start = time.time()
+        corrected_query, display_note = correct_query_spelling(expanded_query, self.pdf_vocabulary)
+        t_spell = round((time.time() - t_spell_start) * 1000, 2)
+
+        if display_note:
+            yield f'event: meta\ndata: {{"corrected_query": "{corrected_query}", "display_note": "{display_note}"}}\n\n'
+
+        # Step 4: Resolve chat history references
+        search_query, is_unclear_ref, ref_reason, ref_clarification = resolve_history_reference(corrected_query, history)
+        if is_unclear_ref and ref_clarification:
+            yield f'event: final\ndata: {{"answer": "{ref_clarification}", "sources": [], "confidence": "clarification_needed", "refusal_reason": "{ref_reason}", "corrected_query": null, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
+            return
+
+        # Step 5: Check feedback correction first
+        feedback_ans = self._check_feedback_correction(query_text)
+        if feedback_ans:
+            feedback_ans = self._ensure_example_section(feedback_ans, "")
+            yield f'event: token\ndata: {{"token": {json.dumps(feedback_ans)}}}\n\n'
+            yield f'event: final\ndata: {{"answer": {json.dumps(feedback_ans)}, "sources": [], "confidence": "grounded", "refusal_reason": null, "corrected_query": null, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
+            return
+
+        # Step 6: Vector search & relevance threshold validation
+        t_ret_start = time.time()
+        is_math = self._classify_query(corrected_query)[0]
         k_value = 4 if is_math else 3
 
-        # Formulate contextualized search query using previous User question topic if follow-up query
-        search_query = query_text
-        if history and history.strip():
-            lines = [l.strip() for l in history.split("\n") if l.strip()]
-            user_questions = [l.replace("User:", "").strip() for l in lines if "User:" in l]
-            if user_questions and len(query_text.split()) < 6:
-                last_user_q = user_questions[-1][:60]
-                if last_user_q and last_user_q.lower() != query_text.lower():
-                    search_query = f"{last_user_q} {query_text}"
-                    print(f"[STREAM] Contextualized search query: '{search_query}'")
+        context_text, docs, sources_metadata = self._get_context_and_docs(search_query, k=k_value)
+        t_ret = round((time.time() - t_ret_start) * 1000, 2)
 
-        context_text, docs = self._get_context_and_docs(
-            search_query,
-            k=k_value
-        )
-
-        print(f"[STREAM] Docs found: {len(docs) if docs else 0}")
-        print(f"[STREAM] Context length: {len(context_text) if context_text else 0}")
-
+        # STRICT REFUSAL: If no relevant chunks meet threshold, respond EXACTLY with required refusal message
         if not docs or not context_text or not context_text.strip():
-            print("[STREAM] No relevant documents found -> strictly returning fallback message")
-            yield FALLBACK_MESSAGE
+            print(f"[RAG] Refusing query: '{query_text}' -> No chunks passed relevance threshold.")
+            yield f'event: final\ndata: {{"answer": {json.dumps(EXACT_REFUSAL_MESSAGE)}, "sources": [], "confidence": "refused", "refusal_reason": "low_relevance", "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"normalization": {t_norm}, "typo_correction": {t_spell}, "retrieval": {t_ret}, "total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
             return
 
-        print(f"[STREAM] Building prompt and starting LLM stream...")
+        # Send preliminary sources metadata
+        yield f'event: meta\ndata: {{"sources": {json.dumps(sources_metadata)}, "corrected_query": {json.dumps(corrected_query if display_note else None)}}}\n\n'
 
-        formatted_prompt = self._build_prompt(
-            query_text,
-            context_text
-        )
-
-        if history and history.strip():
-            formatted_prompt = f"Chat History:\n{history.strip()}\n\n" + formatted_prompt
-
-        is_math, is_big, is_diagram = self._classify_query(query_text)
-        if is_big:
-            predict_tokens = 280
-        elif is_math:
-            predict_tokens = 220
-        elif is_diagram:
-            predict_tokens = 160
-        else:
-            predict_tokens = 160
+        # Step 7: Build prompt and stream LLM tokens
+        formatted_prompt = self._build_prompt(corrected_query, context_text)
 
         full_output = ""
-        chunk_count = 0
+        t_llm_first = None
+        t_llm_start = time.time()
+
         try:
             for chunk in self.llm.stream(formatted_prompt):
-                chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
-                full_output += chunk_text
-                chunk_count += 1
-                yield chunk_text
+                token = chunk.content if hasattr(chunk, "content") else str(chunk)
+                if token:
+                    if t_llm_first is None:
+                        t_llm_first = round((time.time() - t_llm_start) * 1000, 2)
+                    full_output += token
+                    yield f'event: token\ndata: {{"token": {json.dumps(token)}}}\n\n'
 
-            print(f"[STREAM] LLM streaming complete: {chunk_count} chunks, {len(full_output)} chars")
+            # Ensure answer includes Example section
+            full_output = self._ensure_example_section(full_output, context_text)
+            t_total = round((time.time() - t_start) * 1000, 2)
 
-        except Exception as e:
-            print(f"[STREAM] Primary model '{self.model_name}' streaming error: {e}")
-            fallback_models = ["llama3.2:3b", "llama3.2", "qwen2.5:1.5b", "qwen2.5:latest", "qwen2.5:7b", "qwen2.5"]
-            recovered = False
-            for fb_model in fallback_models:
-                if fb_model != self.model_name:
-                    try:
-                        print(f"[STREAM] Attempting fallback model: {fb_model}")
-                        fb_llm = ChatOllama(
-                            model=fb_model,
-                            keep_alive="24h",
-                            options={"num_ctx": 384, "num_predict": predict_tokens, "temperature": 0.0, "num_gpu": 0, "num_thread": 4}
-                        )
-                        for chunk in fb_llm.stream(formatted_prompt):
-                            chunk_text = chunk.content if hasattr(chunk, "content") else str(chunk)
-                            full_output += chunk_text
-                            chunk_count += 1
-                            yield chunk_text
-                        recovered = True
-                        print(f"[STREAM] Successfully recovered using model '{fb_model}'!")
-                        break
-                    except Exception as fb_err:
-                        print(f"[STREAM] Fallback model '{fb_model}' failed: {fb_err}")
-            if not recovered and not full_output.strip():
-                yield FALLBACK_MESSAGE
+            yield f'event: final\ndata: {{"answer": {json.dumps(full_output)}, "sources": {json.dumps(sources_metadata)}, "confidence": "grounded", "refusal_reason": null, "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"normalization": {t_norm}, "typo_correction": {t_spell}, "retrieval": {t_ret}, "llm_first_token": {t_llm_first or 0}, "total": {t_total}}}}}\n\n'
+
+        except Exception as err:
+            print(f"⚠️ Streaming error: {err}")
+            # Fallback refusal on stream exception
+            yield f'event: final\ndata: {{"answer": {json.dumps(EXACT_REFUSAL_MESSAGE)}, "sources": [], "confidence": "refused", "refusal_reason": "llm_error", "corrected_query": null, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'

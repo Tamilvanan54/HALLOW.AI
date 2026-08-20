@@ -4,6 +4,8 @@ export default function ChatInput({
   sendMessage,
   model,
   setModel,
+  isGenerating,
+  stopGeneration
 }) {
   return (
     <div
@@ -35,10 +37,11 @@ export default function ChatInput({
             setMessage(e.target.value)
           }
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            if (e.key === "Enter" && !isGenerating) {
               sendMessage();
             }
           }}
+          disabled={isGenerating}
           style={{
             flex: 1,
             background: "transparent",
@@ -46,6 +49,7 @@ export default function ChatInput({
             outline: "none",
             color: "white",
             fontSize: "16px",
+            opacity: isGenerating ? 0.7 : 1
           }}
         />
 
@@ -54,6 +58,7 @@ export default function ChatInput({
           onChange={(e) =>
             setModel(e.target.value)
           }
+          disabled={isGenerating}
           style={{
             background: "transparent",
             border: "none",
@@ -78,23 +83,47 @@ export default function ChatInput({
           </option>
         </select>
 
-        <button
-          onClick={sendMessage}
-          style={{
-            width: "46px",
-            height: "46px",
-            borderRadius: "50%",
-            border: "none",
-            background: "#ffffff",
-            color: "#000",
-            cursor: "pointer",
-            fontWeight: "bold",
-            fontSize: "18px",
-            flexShrink: 0,
-          }}
-        >
-          ↑
-        </button>
+        {isGenerating ? (
+          <button
+            onClick={stopGeneration}
+            title="Stop generation"
+            style={{
+              width: "46px",
+              height: "46px",
+              borderRadius: "50%",
+              border: "none",
+              background: "#ef4444",
+              color: "#ffffff",
+              cursor: "pointer",
+              fontWeight: "bold",
+              fontSize: "18px",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+          >
+            ■
+          </button>
+        ) : (
+          <button
+            onClick={sendMessage}
+            style={{
+              width: "46px",
+              height: "46px",
+              borderRadius: "50%",
+              border: "none",
+              background: "#ffffff",
+              color: "#000",
+              cursor: "pointer",
+              fontWeight: "bold",
+              fontSize: "18px",
+              flexShrink: 0,
+            }}
+          >
+            ↑
+          </button>
+        )}
       </div>
     </div>
   );
