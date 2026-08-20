@@ -379,17 +379,16 @@ Answer:"""
         is_math = self._classify_query(query_text)[0]
         k_value = 4 if is_math else 3
 
-        # Formulate contextualized search query for vector DB if follow-up
+        # Formulate contextualized search query using previous User question topic if follow-up query
         search_query = query_text
         if history and history.strip():
             lines = [l.strip() for l in history.split("\n") if l.strip()]
-            # Filter out current query line from history turns
-            prev_turns = [l for l in lines if not l.lower().endswith(query_text.lower())]
-            if prev_turns:
-                # Extract main topic from previous User or Assistant turn
-                last_topic = prev_turns[-1].replace("User:", "").replace("Assistant:", "").strip()[:100]
-                search_query = f"{last_topic} {query_text}"
-                print(f"[STREAM] Contextualized search query: '{search_query}'")
+            user_questions = [l.replace("User:", "").strip() for l in lines if "User:" in l]
+            if user_questions and len(query_text.split()) < 6:
+                last_user_q = user_questions[-1][:60]
+                if last_user_q and last_user_q.lower() != query_text.lower():
+                    search_query = f"{last_user_q} {query_text}"
+                    print(f"[STREAM] Contextualized search query: '{search_query}'")
 
         context_text, docs = self._get_context_and_docs(
             search_query,
