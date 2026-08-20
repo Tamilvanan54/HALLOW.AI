@@ -120,8 +120,9 @@ class RAGEngine:
 
             valid_docs = []
             for doc, score in results:
-                # Relevance score threshold: score < 0.80 strictly accepts RAG docs and rejects non-RAG queries
-                if score < 0.80:
+                print(f"[RAG] Query: '{query[:25]}' | Doc score: {score}")
+                # Relevance score threshold: score < 0.85 accepts RAG docs and rejects non-RAG queries
+                if score < 0.85:
                     valid_docs.append(doc)
 
             if not valid_docs:
@@ -178,31 +179,52 @@ class RAGEngine:
         is_math, is_big, is_diagram = self._classify_query(query)
 
         if is_diagram:
-            return f"""Context: {context_text}
-Q: {query}
-Answer with an ASCII diagram inside a code block, a brief explanation, and end with:
+            return f"""Context:
+{context_text}
 
-Example: Practical example"""
+Question: {query}
+
+Instructions:
+1. Draw an ASCII diagram inside a code block, then explain briefly.
+2. Leave a blank line, then write "Example:" followed by a practical example.
+
+Answer:"""
 
         if is_math:
-            return f"""Context: {context_text}
-Q: {query}
-Solve step-by-step (Step 1:, Step 2:, Final Answer:) with Unicode math symbols. End with:
+            return f"""Context:
+{context_text}
 
-Example: Verification example"""
+Question: {query}
+
+Instructions:
+1. Solve step-by-step: Step 1:, Step 2:, Final Answer:.
+2. Use Unicode math symbols (√, ±, ², ³, ·) without raw LaTeX.
+3. Leave a blank line, then write "Example:" followed by a verification example.
+
+Solution:"""
 
         if is_big:
-            return f"""Context: {context_text}
-Q: {query}
-Provide a detailed 16-mark answer (Definition, Key Points, Process) and end with:
+            return f"""Context:
+{context_text}
 
-Example: Real-world example"""
+Question: {query}
 
-        return f"""Context: {context_text}
-Q: {query}
-Provide 3-4 lines of explanation and end with:
+Instructions:
+1. Provide a detailed 16-mark answer (Definition, Key Points, Process).
+2. Leave a blank line, then write "Example:" followed by a practical application example.
 
-Example: Practical real-world example"""
+Answer:"""
+
+        return f"""Context:
+{context_text}
+
+Question: {query}
+
+Instructions:
+1. Provide 3-4 lines of clear explanation based on the Context.
+2. Leave a blank line, then write "Example:" followed by a practical real-world example.
+
+Answer:"""
 
     def _clean_formatting(self, text: str) -> str:
         if not text:
