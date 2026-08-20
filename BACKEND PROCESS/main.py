@@ -713,13 +713,11 @@ def pin_chat(
 class ChatRequest(BaseModel):
 
     question: str
-    history: list[dict] | None = None
 
 
 @app.post("/chat")
 def chat(data: ChatRequest):
 
     return ask_rag(
-        data.question,
-        history=data.history
+        data.question
     )

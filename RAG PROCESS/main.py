@@ -54,18 +54,16 @@ def extract_pdf_documents(pdf_path: str) -> list[Document]:
 
 
 def load_all_pdfs() -> list[Document]:
-    """Find and chunk all unique PDFs across upload directories."""
-    search_dirs = ["./data", "../uploads", "./uploads", "../BACKEND PROCESS/uploads"]
+    """Find and chunk all PDFs across ./data, ./uploads, ../uploads, and project root folders."""
+    search_dirs = ["./data", "../uploads", "./uploads", "../BACKEND PROCESS/uploads", "..", "."]
     pdf_files = []
-    seen_filenames = set()
 
     for d in search_dirs:
         if os.path.exists(d):
             found = glob.glob(os.path.join(d, "*.pdf"))
             for f in found:
-                bname = os.path.basename(f)
-                if bname not in seen_filenames:
-                    seen_filenames.add(bname)
+                abs_f = os.path.abspath(f)
+                if abs_f not in [os.path.abspath(p) for p in pdf_files]:
                     pdf_files.append(f)
 
     if not pdf_files:
@@ -203,7 +201,7 @@ app.add_middleware(
 class QueryRequest(BaseModel):
     query: str = Field(..., examples=["What is machine learning?"])
     model_name: str = Field(default="qwen2.5:3b", examples=["qwen2.5:3b"])
-    history: list[dict] | None = Field(default=None)
+    history: str | None = None
 
 
 class IngestRequest(BaseModel):
@@ -310,7 +308,7 @@ def handle_query(request: QueryRequest):
 
     engine.set_model(request.model_name)
 
-    result = engine.query(request.query, history=request.history)
+    result = engine.query(request.query)
     answer = result.get("answer", "")
 
     sources = [

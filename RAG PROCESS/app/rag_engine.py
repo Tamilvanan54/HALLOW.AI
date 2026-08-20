@@ -16,9 +16,11 @@ class RAGEngine:
         self.model_name = model_name
 
         self.options = {
+            "num_gpu": 0,
             "temperature": 0.0,
             "num_predict": 200,
             "num_ctx": 384,
+            "num_thread": 4,
             "repeat_penalty": 1.05,
             "top_k": 5,
             "top_p": 0.5
@@ -42,26 +44,10 @@ class RAGEngine:
     def _check_feedback_correction(self, query_text: str) -> str | None:
         """Check if Admin/Staff reviewed & corrected the answer in feedback section FIRST."""
         try:
-            import os, sys
-            backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../BACKEND PROCESS"))
-            if backend_path not in sys.path:
-                sys.path.insert(0, backend_path)
-            from feedback.correction import get_corrected_answer
-            res = get_corrected_answer(query_text)
-            if res and res.get("found") and res.get("answer"):
-                ans = str(res.get("answer")).strip()
-                if ans and "cannot find information" not in ans.lower() and "sorry" not in ans.lower()[:20]:
-                    print(f"✨ [FEEDBACK FIRST MATCH]: Found feedback answer for question '{query_text}'")
-                    return ans
-                return None
-        except Exception:
-            pass
-
-        try:
             res = requests.get(
                 "http://127.0.0.1:8000/feedback-correction",
                 params={"question": query_text},
-                timeout=0.1
+                timeout=0.015
             )
             if res.status_code == 200:
                 data = res.json()
@@ -73,20 +59,6 @@ class RAGEngine:
         except Exception:
             pass
         return None
-
-    def _format_history(self, history: list[dict] | None = None) -> str:
-        if not history:
-            return ""
-        formatted_turns = []
-        for msg in history[-6:]:
-            sender = msg.get("sender") or msg.get("role") or "User"
-            text = (msg.get("text") or msg.get("content") or msg.get("message") or "").strip()
-            if text:
-                role_label = "User" if str(sender).lower() in ["user", "human"] else "AI"
-                formatted_turns.append(f"{role_label}: {text}")
-        if not formatted_turns:
-            return ""
-        return "Chat History:\n" + "\n".join(formatted_turns) + "\n\n"
 
     def set_model(self, model_name: str):
         if self.model_name == model_name and hasattr(self, "llm") and self.llm:
@@ -100,6 +72,7 @@ class RAGEngine:
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 5
         fast_options["top_p"] = 0.5
+        fast_options["num_gpu"] = 0
 
         fast_kwargs = dict(self.default_kwargs)
         fast_kwargs["options"] = fast_options
@@ -137,31 +110,14 @@ class RAGEngine:
     def _get_context_and_docs(
         self,
         query,
-        k=3,
-        history=None
+        k=3
     ):
         try:
             is_math = self._classify_query(query)[0]
             # Math queries with equations need threshold 1.15 to capture formulas
             threshold = 1.15 if is_math else 0.92
 
-            search_query = query
-            referential_words = ["it", "its", "this", "that", "he", "she", "they", "them", "these", "those", "above", "explain more", "elaborate"]
-            query_words = set(query.lower().split())
-            if history and any(w in query_words for w in referential_words):
-                last_user_msg = None
-                for m in reversed(history):
-                    s = m.get("sender") or m.get("role") or ""
-                    if str(s).lower() in ["user", "human"]:
-                        last_user_msg = m.get("text") or m.get("content") or m.get("message")
-                        break
-                if last_user_msg:
-                    search_query = f"{last_user_msg} {query}"
-
-            results = self.vectorstore.similarity_search_with_score(search_query, k=k)
-            if not results and search_query != query:
-                results = self.vectorstore.similarity_search_with_score(query, k=k)
-
+            results = self.vectorstore.similarity_search_with_score(query, k=k)
             if not results:
                 print("[RAG] No matching documents found")
                 return "", []
@@ -223,14 +179,12 @@ class RAGEngine:
     def _build_prompt(
         self,
         query,
-        context_text,
-        history=None
+        context_text
     ):
-        history_str = self._format_history(history)
         is_math, is_big, is_diagram = self._classify_query(query)
 
         if is_diagram:
-            return f"""{history_str}Context:
+            return f"""Context:
 {context_text}
 
 Question: {query}
@@ -242,7 +196,7 @@ Instructions:
 Answer:"""
 
         if is_math:
-            return f"""{history_str}Context:
+            return f"""Context:
 {context_text}
 
 Question: {query}
@@ -256,7 +210,7 @@ Instructions:
 Solution:"""
 
         if is_big:
-            return f"""{history_str}Context:
+            return f"""Context:
 {context_text}
 
 Question: {query}
@@ -267,7 +221,7 @@ Instructions:
 
 Answer:"""
 
-        return f"""{history_str}Context:
+        return f"""Context:
 {context_text}
 
 Question: {query}
@@ -356,8 +310,7 @@ Answer:"""
 
     def query(
         self,
-        query_text,
-        history=None
+        query_text
     ):
         corrected = self._check_feedback_correction(query_text)
         if corrected:
@@ -371,8 +324,7 @@ Answer:"""
 
         context_text, docs = self._get_context_and_docs(
             query_text,
-            k=k_value,
-            history=history
+            k=k_value
         )
 
         if not docs or not context_text or not context_text.strip():
@@ -383,8 +335,7 @@ Answer:"""
 
         formatted_prompt = self._build_prompt(
             query_text,
-            context_text,
-            history=history
+            context_text
         )
 
         try:
@@ -413,7 +364,7 @@ Answer:"""
     def query_stream(
         self,
         query_text: str,
-        history: list[dict] | None = None
+        history: str | None = None
     ) -> Generator[str, None, None]:
         print(f"[STREAM] Starting query_stream for: {query_text}")
 
@@ -426,10 +377,16 @@ Answer:"""
         is_math = self._classify_query(query_text)[0]
         k_value = 4 if is_math else 3
 
+        # Include key terms from history if query is a short follow-up
+        search_query = query_text
+        if history and history.strip() and len(query_text.split()) < 5:
+            user_lines = [line for line in history.split("\n") if line.startswith("User:")]
+            if user_lines:
+                search_query = f"{user_lines[-1].replace('User:', '').strip()} {query_text}"
+
         context_text, docs = self._get_context_and_docs(
-            query_text,
-            k=k_value,
-            history=history
+            search_query,
+            k=k_value
         )
 
         print(f"[STREAM] Docs found: {len(docs) if docs else 0}")
@@ -444,9 +401,11 @@ Answer:"""
 
         formatted_prompt = self._build_prompt(
             query_text,
-            context_text,
-            history=history
+            context_text
         )
+
+        if history and history.strip():
+            formatted_prompt = f"Chat History:\n{history.strip()}\n\n" + formatted_prompt
 
         is_math, is_big, is_diagram = self._classify_query(query_text)
         if is_big:
