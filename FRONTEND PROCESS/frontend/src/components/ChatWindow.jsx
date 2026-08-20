@@ -181,7 +181,7 @@ export default function ChatWindow({ messages }) {
           >
             {msg.sender === "AI" ? (
               <>
-                {/* 1. Typo Correction Indicator - displayed ONLY when corrected_query or displayNote exists */}
+                {/* 1. Typo Correction Indicator - displayed ONLY when correctedQuery or displayNote exists */}
                 {(msg.displayNote || msg.correctedQuery) && (
                   <div
                     style={{
@@ -201,7 +201,7 @@ export default function ChatWindow({ messages }) {
                 )}
 
                 {/* 2. Streaming Status Indicator */}
-                {msg.streaming && msg.statusText && !msg.text && (
+                {msg.streaming && (msg.status || msg.statusText) && !msg.text && (
                   <div
                     style={{
                       color: "#38bdf8",
@@ -214,7 +214,7 @@ export default function ChatWindow({ messages }) {
                     }}
                   >
                     <span style={{ animation: "spin 1s linear infinite" }}>⚡</span>
-                    {msg.statusText}
+                    {msg.statusText || "Searching uploaded study materials…"}
                   </div>
                 )}
 
@@ -239,7 +239,7 @@ export default function ChatWindow({ messages }) {
                   msg.text || msg.streaming ? (
                     <>
                       {formatMathText(msg.text)}
-                      {msg.streaming && (
+                      {msg.streaming && !msg.status && (
                         <span
                           style={{
                             display: "inline-block",
@@ -260,8 +260,8 @@ export default function ChatWindow({ messages }) {
                   )
                 )}
 
-                {/* 4. Expandable Sources Card - displayed ONLY after final response completes (streaming === false) */}
-                {!msg.streaming && msg.sources && msg.sources.length > 0 && (
+                {/* 4. Expandable Sources Card - displayed ONLY after final response completes (streaming === false && status === false) */}
+                {!msg.streaming && !msg.status && msg.sources && msg.sources.length > 0 && (
                   <div
                     style={{
                       marginTop: "16px",
@@ -294,7 +294,7 @@ export default function ChatWindow({ messages }) {
             )}
 
             {/* Menu options for AI answers */}
-            {msg.sender === "AI" && msg.text && (
+            {msg.sender === "AI" && msg.text && !msg.status && (
               <div
                 style={{
                   display: "flex",

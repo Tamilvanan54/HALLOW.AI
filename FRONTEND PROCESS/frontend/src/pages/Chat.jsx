@@ -8,6 +8,14 @@ import ChatInput from "../components/ChatInput";
 
 import useChatHistory from "../hooks/useChatHistory";
 
+const cleanAnswerText = (text) => {
+  if (!text) return "";
+  let cleaned = text.trim();
+  // Normalize duplicate example headings into a single ### Example heading
+  cleaned = cleaned.replace(/(?:\n*\s*###?\s*(?:Example|[A-Za-z0-9_\s]*Example):?\s*)+/gi, "\n\n### Example\n");
+  return cleaned;
+};
+
 export default function Chat() {
   const [message, setMessage] = useState("");
   const [model, setModel] = useState("Qwen");
@@ -66,7 +74,8 @@ export default function Chat() {
         const formattedMessages = response.data.messages.map((m) => ({
           sender: m.sender === "user" ? "User" : "AI",
           text: m.message,
-          streaming: false
+          streaming: false,
+          status: false
         }));
         setMessages(formattedMessages);
       } else {
@@ -89,6 +98,7 @@ export default function Chat() {
           updated[updated.length - 1] = {
             ...updated[updated.length - 1],
             streaming: false,
+            status: false,
             text: updated[updated.length - 1].text || "Generation cancelled."
           };
         }
@@ -97,7 +107,23 @@ export default function Chat() {
     }
   };
 
-  // SEND MESSAGE WITH COMPLIANT SSE STREAM PARSER
+  // Helper to update only the current/last AI message in React state
+  const updateCurrentAiMessage = (fields) => {
+    setMessages((prev) => {
+      if (!prev.length) return prev;
+      const updated = [...prev];
+      const lastIndex = updated.length - 1;
+      if (updated[lastIndex].sender === "AI") {
+        updated[lastIndex] = {
+          ...updated[lastIndex],
+          ...fields
+        };
+      }
+      return updated;
+    });
+  };
+
+  // SEND MESSAGE WITH EXACT COMPLIANT SSE STREAM PARSER
   const sendMessage = async () => {
     if (!message.trim() || isGenerating) return;
 
@@ -123,10 +149,10 @@ export default function Chat() {
       { sender: "User", text: currentMessage },
       {
         sender: "AI",
-        text: "",
+        text: "Searching uploaded study materials…",
         streaming: true,
+        status: true,
         statusText: "Searching uploaded study materials…",
-        displayNote: null,
         correctedQuery: null,
         sources: [],
         confidence: "grounded"
@@ -170,112 +196,118 @@ export default function Chat() {
       }
 
       const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let fullTargetText = "";
-      let currentSources = [];
-      let displayNote = null;
-      let correctedQuery = null;
-      let confidence = "grounded";
-      let statusText = "Searching uploaded study materials…";
+      const decoder = new TextDecoder();
+
       let buffer = "";
+      let currentAnswer = "";
+      let sources = [];
+      let correctedQuery = null;
 
       while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const { value, done } = await reader.read();
 
-        buffer += decoder.decode(value, { stream: true });
-        
-        // Split complete events using blank lines (\n\n or \r\n\r\n)
-        const events = buffer.split(/\r?\n\r?\n/);
-        buffer = events.pop() || "";
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
 
-        for (const evt of events) {
-          if (!evt.trim()) continue;
-          const lines = evt.split(/\r?\n/);
-          let eventType = "token";
-          let dataStr = "";
+          // Supports both LF and CRLF SSE separators
+          const completeEvents = buffer.split(/\r?\n\r?\n/);
+          buffer = completeEvents.pop() || "";
 
-          for (const line of lines) {
-            if (line.startsWith("event:")) {
-              eventType = line.slice(6).trim();
-            } else if (line.startsWith("data:")) {
-              const payloadLine = line.slice(5).trim();
-              dataStr += dataStr ? "\n" + payloadLine : payloadLine;
+          for (const rawEvent of completeEvents) {
+            if (!rawEvent.trim()) continue;
+
+            const eventMatch = rawEvent.match(/^event:\s*(.+)$/m);
+            const dataMatch = rawEvent.match(/^data:\s*(.+)$/m);
+
+            if (!dataMatch) continue;
+
+            const eventName = eventMatch?.[1]?.trim() || "message";
+
+            let payload;
+            try {
+              payload = JSON.parse(dataMatch[1]);
+            } catch {
+              console.warn("Invalid SSE JSON ignored:", rawEvent);
+              continue;
             }
-          }
 
-          if (!dataStr) continue;
+            if (eventName === "status") {
+              // Show only clean status text — never event/data JSON
+              updateCurrentAiMessage({
+                text: payload.message || "Searching uploaded study materials…",
+                streaming: true,
+                statusText: payload.message || "Searching uploaded study materials…",
+                status: true,
+                sources: []
+              });
+            }
 
-          try {
-            const payload = JSON.parse(dataStr);
+            if (eventName === "meta") {
+              sources = payload.sources || [];
+              correctedQuery = payload.corrected_query || payload.display_note || null;
+              // Never render this event as chat text
+            }
 
-            if (eventType === "status") {
-              statusText = payload.message || "Searching uploaded study materials…";
-            } else if (eventType === "meta") {
-              if (payload.display_note) displayNote = payload.display_note;
-              if (payload.corrected_query !== undefined) correctedQuery = payload.corrected_query;
-              if (payload.sources) currentSources = payload.sources;
-            } else if (eventType === "token") {
+            if (eventName === "token") {
               const token = payload.token ?? payload.text ?? "";
-              if (token) {
-                fullTargetText += token;
-                statusText = null; // hide status indicator as soon as first token arrives
-              }
-            } else if (eventType === "final") {
-              if (payload.answer) fullTargetText = payload.answer;
-              if (payload.sources) currentSources = payload.sources;
-              if (payload.confidence) confidence = payload.confidence;
-              if (payload.display_note) displayNote = payload.display_note;
-              if (payload.corrected_query !== undefined) correctedQuery = payload.corrected_query;
+
+              if (!token) continue;
+
+              currentAnswer += token;
+
+              updateCurrentAiMessage({
+                text: currentAnswer,
+                streaming: true,
+                status: false,
+                statusText: null,
+                sources: []
+              });
             }
-          } catch (pErr) {
-            console.warn("Invalid SSE JSON payload:", dataStr, pErr);
+
+            if (eventName === "final") {
+              currentAnswer = cleanAnswerText(payload.answer || currentAnswer);
+              sources = payload.sources || sources;
+              correctedQuery = payload.corrected_query || payload.display_note || correctedQuery;
+
+              updateCurrentAiMessage({
+                text: currentAnswer,
+                streaming: false,
+                status: false,
+                statusText: null,
+                sources: sources,
+                correctedQuery: correctedQuery,
+                confidence: payload.confidence,
+                refusalReason: payload.refusal_reason
+              });
+            }
           }
-
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = {
-              sender: "AI",
-              text: fullTargetText,
-              streaming: true,
-              statusText: statusText,
-              displayNote: displayNote,
-              correctedQuery: correctedQuery,
-              sources: currentSources,
-              confidence: confidence
-            };
-            return updated;
-          });
         }
+
+        if (done) break;
       }
 
-      if (!fullTargetText || !fullTargetText.trim()) {
-        fullTargetText = "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.";
-        confidence = "refused";
+      if (!currentAnswer || !currentAnswer.trim()) {
+        currentAnswer = "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.";
       }
 
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          sender: "AI",
-          text: fullTargetText,
-          streaming: false,
-          statusText: null,
-          displayNote: displayNote,
-          correctedQuery: correctedQuery,
-          sources: currentSources,
-          confidence: confidence
-        };
-        return updated;
+      currentAnswer = cleanAnswerText(currentAnswer);
+
+      updateCurrentAiMessage({
+        text: currentAnswer,
+        streaming: false,
+        status: false,
+        statusText: null,
+        sources: sources,
+        correctedQuery: correctedQuery
       });
 
       // Save AI answer in database
-      if (fullTargetText && fullTargetText.trim()) {
+      if (currentAnswer && currentAnswer.trim()) {
         axios.post(`${API_BASE_URL}/save-message`, null, {
           params: {
             session_id: chatId,
             sender: "AI",
-            message: fullTargetText
+            message: currentAnswer
           }
         }).catch((e) => console.error("Failed to save AI message:", e));
       }
@@ -283,17 +315,11 @@ export default function Chat() {
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("CHAT ERROR:", error);
-        setMessages((prev) => {
-          const updated = [...prev];
-          if (updated.length > 0 && updated[updated.length - 1].sender === "AI") {
-            updated[updated.length - 1] = {
-              sender: "AI",
-              text: "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.",
-              streaming: false,
-              confidence: "refused"
-            };
-          }
-          return updated;
+        updateCurrentAiMessage({
+          text: "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.",
+          streaming: false,
+          status: false,
+          confidence: "refused"
         });
       }
     } finally {
