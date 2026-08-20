@@ -197,9 +197,10 @@ Answer:"""
 Question: {query}
 
 Instructions:
-1. Solve step-by-step: Step 1:, Step 2:, Final Answer:.
-2. Use Unicode math symbols (√, ±, ², ³, ·) without raw LaTeX.
-3. Leave a blank line, then write "Example:" followed by a verification example.
+1. Solve step-by-step: Write Step 1:, Step 2:, Step 3: on separate lines with all working clearly shown.
+2. Write "Final Answer:" on its own line.
+3. Use clean Unicode math symbols (√, ±, ², ³, ·, ∫, ℝ) without raw LaTeX code.
+4. Leave a blank line, then write "Example:" followed by a short verification example.
 
 Solution:"""
 
@@ -246,6 +247,20 @@ Answer:"""
             .replace("\\pm", "±")
             .replace("\\sqrt", "√")
             .replace("\\infty", "∞")
+            .replace("\\int", "∫")
+            .replace("\\partial", "∂")
+            .replace("\\sum", "∑")
+            .replace("\\prod", "∏")
+            .replace("\\alpha", "α")
+            .replace("\\beta", "β")
+            .replace("\\theta", "θ")
+            .replace("\\pi", "π")
+            .replace("\\delta", "δ")
+            .replace("\\in", "∈")
+            .replace("\\notin", "∉")
+            .replace("\\subset", "⊂")
+            .replace("\\cup", "∪")
+            .replace("\\cap", "∩")
             .replace("\\mathbb{R}", "ℝ")
             .replace("\\mathbb{Q}", "ℚ")
             .replace("\\mathbb{Z}", "ℤ")
