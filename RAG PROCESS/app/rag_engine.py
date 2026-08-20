@@ -27,8 +27,8 @@ class RAGEngine:
         self.options = {
             "num_gpu": 0,
             "temperature": 0.0,
-            "num_predict": 220,
-            "num_ctx": 256,
+            "num_predict": 260,
+            "num_ctx": 320,
             "num_thread": 4,
             "repeat_penalty": 1.05,
             "top_k": 5,
@@ -62,8 +62,8 @@ class RAGEngine:
 
         print(f"[RAG] Requesting model switch to '{model_name}'")
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 256
-        fast_options["num_predict"] = 220
+        fast_options["num_ctx"] = 320
+        fast_options["num_predict"] = 260
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 5
         fast_options["top_p"] = 0.5
@@ -149,8 +149,8 @@ class RAGEngine:
         """
         try:
             is_math = self._classify_query(query)[0]
-            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "0.85"))
-            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.00"))
+            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "0.92"))
+            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.10"))
             threshold = env_math_thresh if is_math else env_thresh
 
             results = self.vectorstore.similarity_search_with_score(query, k=k)
@@ -180,7 +180,7 @@ class RAGEngine:
                 print(f"[RAG] All retrieved chunks exceeded relevance threshold ({threshold}) for query: '{query[:30]}'")
                 return "", [], []
 
-            context_limit = 650 if is_math else 350
+            context_limit = 700 if is_math else 450
             context_text = "\n\n".join([doc.page_content for doc in valid_docs])[:context_limit]
             return context_text, valid_docs, sources_metadata
 
@@ -246,8 +246,8 @@ Answer:"""
 Question: {query}
 
 Instructions:
-1. Provide a concise 3-4 lines explanation based ONLY on the Context.
-2. Leave a blank line, then write "### Example" followed by a practical example.
+1. Provide 4-6 lines of clear explanation based ONLY on the Context.
+2. Leave a blank line, then write "### Example" followed by a practical example from Context.
 
 Answer:"""
 

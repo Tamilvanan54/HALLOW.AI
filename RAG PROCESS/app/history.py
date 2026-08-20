@@ -23,7 +23,7 @@ def resolve_history_reference(
     has_pronoun = bool(words.intersection(REFERENCE_PRONOUNS))
     has_followup_phrase = any(phrase in query_lower for phrase in FOLLOWUP_PHRASES)
 
-    is_followup = has_pronoun or has_followup_phrase or len(query.split()) < 5
+    is_followup = has_pronoun or has_followup_phrase
 
     # If query does NOT need reference resolution, return original query
     if not is_followup:
