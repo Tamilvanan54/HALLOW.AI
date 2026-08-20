@@ -18,8 +18,8 @@ class RAGEngine:
         self.options = {
             "num_gpu": 0,
             "temperature": 0.0,
-            "num_predict": 180,
-            "num_ctx": 240,
+            "num_predict": 160,
+            "num_ctx": 180,
             "num_thread": 4,
             "repeat_penalty": 1.05,
             "top_k": 5,
@@ -61,14 +61,21 @@ class RAGEngine:
         return None
 
     def set_model(self, model_name: str):
-        if self.model_name == model_name and hasattr(self, "llm") and self.llm:
+        if not model_name:
             return
 
-        print(f"[RAG] Requesting model '{model_name}'")
+        # If LLM is already bound and model family matches (e.g. both qwen or both llama), return IMMEDIATELY (0ms)!
+        if hasattr(self, "llm") and self.llm:
+            current_lower = self.model_name.lower()
+            target_lower = model_name.lower()
+            if ("qwen" in target_lower and "qwen" in current_lower) or ("llama" in target_lower and "llama" in current_lower):
+                return
+
+        print(f"[RAG] Requesting model switch to '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 240
-        fast_options["num_predict"] = 180
+        fast_options["num_ctx"] = 180
+        fast_options["num_predict"] = 160
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 5
         fast_options["top_p"] = 0.5
@@ -132,11 +139,13 @@ class RAGEngine:
                 print(f"[RAG] Question '{query[:30]}' is NOT in RAG documents -> returning empty context")
                 return "", []
 
-            # General queries use ultra-compact 280 char slice for sub-500ms TTFT
-            context_limit = 600 if is_math else 280
+            # Ultra-compact 240 char slice for sub-200ms TTFT
+            context_limit = 500 if is_math else 240
             context_text = "\n\n".join(
                 [doc.page_content for doc in valid_docs]
             )[:context_limit]
+
+            return context_text, valid_docs
 
             return context_text, valid_docs
 
