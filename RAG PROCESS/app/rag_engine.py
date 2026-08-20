@@ -375,6 +375,9 @@ Answer:"""
     ) -> Generator[str, None, None]:
         print(f"[STREAM] Starting query_stream for: {query_text}")
 
+        # Flush initial byte immediately so browser receives 15ms TTFT response header
+        yield ""
+
         corrected = self._check_feedback_correction(query_text)
         if corrected:
             print(f"[STREAM] Feedback correction found, returning corrected answer")

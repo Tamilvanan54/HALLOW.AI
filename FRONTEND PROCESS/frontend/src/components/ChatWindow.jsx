@@ -244,7 +244,7 @@ setTimeout(() => {
               }}
             >
               {msg.sender === "AI" ? (
-                msg.text ? (
+                (msg.text || msg.streaming) ? (
                   <>
                     {formatMathText(msg.text)}
                     {msg.streaming && (
