@@ -18,8 +18,8 @@ class RAGEngine:
         self.options = {
             "num_gpu": 0,
             "temperature": 0.0,
-            "num_predict": 220,
-            "num_ctx": 256,
+            "num_predict": 140,
+            "num_ctx": 200,
             "num_thread": 4,
             "repeat_penalty": 1.05,
             "top_k": 5,
@@ -74,8 +74,8 @@ class RAGEngine:
         print(f"[RAG] Requesting model switch to '{model_name}'")
 
         fast_options = dict(self.options)
-        fast_options["num_ctx"] = 256
-        fast_options["num_predict"] = 220
+        fast_options["num_ctx"] = 200
+        fast_options["num_predict"] = 140
         fast_options["temperature"] = 0.0
         fast_options["top_k"] = 5
         fast_options["top_p"] = 0.5
@@ -85,11 +85,11 @@ class RAGEngine:
         fast_kwargs["options"] = fast_options
         fast_kwargs["keep_alive"] = "24h"
 
-        candidate_models = [model_name]
+        candidate_models = ["qwen2.5:1.5b", "qwen2.5:0.5b", model_name]
         if "qwen" in model_name.lower():
-            candidate_models.extend(["qwen2.5:1.5b", "qwen2.5:latest", "qwen2.5:7b", "qwen2.5", "qwen2.5:3b"])
+            candidate_models.extend(["qwen2.5:1.5b", "qwen2.5:0.5b", "qwen2.5:latest", "qwen2.5:3b"])
         elif "llama" in model_name.lower():
-            candidate_models.extend(["llama3.2:3b", "llama3.2:latest", "llama3.2:1b", "llama3.2", "llama3"])
+            candidate_models.extend(["llama3.2:1b", "llama3.2:3b", "llama3.2:latest"])
 
         # Add general fallbacks
         for fallback in ["qwen2.5:1.5b", "qwen2.5:latest", "llama3.2:3b", "llama3.2"]:

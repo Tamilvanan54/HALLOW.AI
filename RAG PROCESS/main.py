@@ -160,15 +160,15 @@ async def lifespan(app_instance: FastAPI):
 
     if vectorstore:
         engine = RAGEngine(
-            vectorstore=vectorstore, 
-            model_name="qwen2.5:3b",
+            vectorstore=vectorstore,
+            model_name="qwen2.5:1.5b",
             model_kwargs={
                 "keep_alive": "24h",
                 "options": {
                     "num_gpu": 0,
                     "temperature": 0.0,
-                    "num_predict": 180,
-                    "num_ctx": 240,
+                    "num_predict": 140,
+                    "num_ctx": 200,
                     "num_thread": 4,
                     "top_k": 5,
                     "top_p": 0.5

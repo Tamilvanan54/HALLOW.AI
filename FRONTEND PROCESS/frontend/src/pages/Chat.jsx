@@ -350,7 +350,7 @@ try {
       body: JSON.stringify({
         query: currentMessage,
         history: recentHistory,
-        model_name: (model === "Llama" || model === "Llama 3.2") ? "llama3.2:3b" : "qwen2.5:3b"
+        model_name: (model === "Llama" || model === "Llama 3.2") ? "llama3.2:1b" : "qwen2.5:1.5b"
       })
     }
   );
