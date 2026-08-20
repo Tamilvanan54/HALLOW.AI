@@ -331,11 +331,14 @@ try {
   ).catch((e) => console.error("Failed to save user message:", e));
 
   // Extract recent conversation history for follow-up questions
-  const recentHistory = messages
-    .slice(-4)
-    .filter((m) => m.text && m.text !== "Sorry, I cannot find information regarding this question in the uploaded documents.")
-    .map((m) => `${m.sender === "User" ? "User" : "Assistant"}: ${m.text.slice(0, 150)}`)
-    .join("\n");
+  let recentHistory = "";
+  if (Array.isArray(messages) && messages.length > 0) {
+    recentHistory = messages
+      .slice(-4)
+      .filter((m) => m && m.text && typeof m.text === "string" && m.text !== "Sorry, I cannot find information regarding this question in the uploaded documents.")
+      .map((m) => `${m.sender === "User" ? "User" : "Assistant"}: ${m.text.slice(0, 150)}`)
+      .join("\n");
+  }
 
   const response = await fetch(
     `${RAG_BASE_URL}/api/query/stream`,

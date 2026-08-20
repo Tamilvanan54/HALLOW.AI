@@ -198,10 +198,12 @@ app.add_middleware(
 )
 
 
+from typing import Any
+
 class QueryRequest(BaseModel):
     query: str = Field(..., examples=["What is machine learning?"])
     model_name: str = Field(default="qwen2.5:3b", examples=["qwen2.5:3b"])
-    history: str | None = None
+    history: Any | None = None
 
 
 class IngestRequest(BaseModel):
@@ -333,8 +335,15 @@ def handle_query_stream(request: QueryRequest):
 
     engine.set_model(request.model_name)
 
+    history_str = ""
+    if request.history:
+        if isinstance(request.history, list):
+            history_str = "\n".join([str(h) for h in request.history if h])
+        else:
+            history_str = str(request.history)
+
     def token_generator():
-        for chunk in engine.query_stream(request.query, history=request.history):
+        for chunk in engine.query_stream(request.query, history=history_str):
             yield chunk
 
     return StreamingResponse(
