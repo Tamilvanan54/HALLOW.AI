@@ -6,6 +6,13 @@ const formatMathText = (text) => {
   if (!text || !text.trim()) return "";
   let formatted = text;
 
+  // Defensive check: strip any residual raw SSE protocol string if unparsed
+  formatted = formatted.replace(/^event:\s*\w+\s*\n+data:\s*\{.*?\}/gis, "");
+  formatted = formatted.replace(/(?:\n|^)data:\s*\{"token":"(.*?)"\}/gi, "$1");
+
+  // Deduplicate any repeated ### Example headings
+  formatted = formatted.replace(/(?:\n*\s*###?\s*(?:Example|[A-Za-z0-9_\s]*Example):?\s*)+/gi, "\n\n### Example\n");
+
   // Convert LaTeX fractions and square roots to clean readable notation
   formatted = formatted.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)");
   formatted = formatted.replace(/\\sqrt\{([^}]+)\}/g, "√($1)");
@@ -19,9 +26,6 @@ const formatMathText = (text) => {
     .replace(/\\sqrt/g, "√")
     .replace(/\\infty/g, "∞")
     .replace(/\\mathbb\{R\}/g, "ℝ")
-    .replace(/\\mathbb\{Q\}/g, "ℚ")
-    .replace(/\\mathbb\{Z\}/g, "ℤ")
-    .replace(/\\R/g, "ℝ")
     .replace(/\\cdot/g, "·")
     .replace(/\\times/g, "×")
     .replace(/\\div/g, "÷")
@@ -30,21 +34,14 @@ const formatMathText = (text) => {
     .replace(/\\neq/g, "≠")
     .replace(/\\Rightarrow/g, "⇒")
     .replace(/\\Leftrightarrow/g, "⇔")
-    .replace(/\\iff/g, "⇔")
-    .replace(/\\quad/g, " ")
-    .replace(/\\\)/g, "")
-    .replace(/\\\]/g, "")
-    .replace(/\\\(/g, "")
-    .replace(/\\\[/g, "")
     .replace(/\^2/g, "²")
     .replace(/\^3/g, "³");
 
   // Force step headings and Example onto separate lines with clean spacing
   formatted = formatted.replace(/([^\n])\s*(###?\s*Step|\bStep\s+\d+:)/g, "$1\n\n$2");
   formatted = formatted.replace(/([^\n])\s*(###?\s*Final Answer:|\bFinal Answer:)/g, "$1\n\n$2");
-  formatted = formatted.replace(/([^\n])\s*(###?\s*Example:|\bExample:)/g, "$1\n\n$2");
 
-  return formatted;
+  return formatted.trim();
 };
 
 export default function ChatWindow({ messages }) {
@@ -184,8 +181,8 @@ export default function ChatWindow({ messages }) {
           >
             {msg.sender === "AI" ? (
               <>
-                {/* 1. Typo Correction Indicator */}
-                {msg.displayNote && (
+                {/* 1. Typo Correction Indicator - displayed ONLY when corrected_query or displayNote exists */}
+                {(msg.displayNote || msg.correctedQuery) && (
                   <div
                     style={{
                       display: "inline-block",
@@ -199,7 +196,7 @@ export default function ChatWindow({ messages }) {
                       border: "1px solid #0284c7"
                     }}
                   >
-                    🔍 {msg.displayNote}
+                    🔍 {msg.displayNote || `Searching for: ${msg.correctedQuery}`}
                   </div>
                 )}
 
@@ -221,7 +218,7 @@ export default function ChatWindow({ messages }) {
                   </div>
                 )}
 
-                {/* 3. Refusal Card or Answer Text */}
+                {/* 3. Refusal Card or Clean Answer Text */}
                 {msg.confidence === "refused" ? (
                   <div
                     style={{
@@ -263,8 +260,8 @@ export default function ChatWindow({ messages }) {
                   )
                 )}
 
-                {/* 4. Expandable Source Citations Card */}
-                {msg.sources && msg.sources.length > 0 && (
+                {/* 4. Expandable Sources Card - displayed ONLY after final response completes (streaming === false) */}
+                {!msg.streaming && msg.sources && msg.sources.length > 0 && (
                   <div
                     style={{
                       marginTop: "16px",
@@ -275,7 +272,7 @@ export default function ChatWindow({ messages }) {
                     }}
                   >
                     <div style={{ fontWeight: "600", fontSize: "13px", color: "#38bdf8", marginBottom: "8px" }}>
-                      📄 Sources ({msg.sources.length})
+                      Sources ({msg.sources.length})
                     </div>
                     {msg.sources.map((s, sIdx) => (
                       <details key={sIdx} style={{ marginBottom: "6px", fontSize: "13px", color: "#d1d5db" }}>

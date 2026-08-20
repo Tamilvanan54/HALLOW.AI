@@ -22,8 +22,7 @@ export default function Chat() {
     chatHistory,
     addChat,
     deleteChat,
-    togglePin,
-    fetchChats
+    togglePin
   } = useChatHistory();
 
   useEffect(() => {
@@ -66,7 +65,8 @@ export default function Chat() {
       if (response.data.status && Array.isArray(response.data.messages)) {
         const formattedMessages = response.data.messages.map((m) => ({
           sender: m.sender === "user" ? "User" : "AI",
-          text: m.message
+          text: m.message,
+          streaming: false
         }));
         setMessages(formattedMessages);
       } else {
@@ -89,7 +89,7 @@ export default function Chat() {
           updated[updated.length - 1] = {
             ...updated[updated.length - 1],
             streaming: false,
-            text: updated[updated.length - 1].text || "Generation stopped."
+            text: updated[updated.length - 1].text || "Generation cancelled."
           };
         }
         return updated;
@@ -97,7 +97,7 @@ export default function Chat() {
     }
   };
 
-  // SEND MESSAGE WITH SSE STREAMING
+  // SEND MESSAGE WITH COMPLIANT SSE STREAM PARSER
   const sendMessage = async () => {
     if (!message.trim() || isGenerating) return;
 
@@ -105,7 +105,6 @@ export default function Chat() {
     setMessage("");
     setIsGenerating(true);
 
-    const email = localStorage.getItem("email");
     let chatId = currentChatId;
 
     if (!chatId) {
@@ -128,6 +127,7 @@ export default function Chat() {
         streaming: true,
         statusText: "Searching uploaded study materials…",
         displayNote: null,
+        correctedQuery: null,
         sources: [],
         confidence: "grounded"
       }
@@ -165,11 +165,16 @@ export default function Chat() {
         })
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
       const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder("utf-8");
       let fullTargetText = "";
       let currentSources = [];
       let displayNote = null;
+      let correctedQuery = null;
       let confidence = "grounded";
       let statusText = "Searching uploaded study materials…";
       let buffer = "";
@@ -179,44 +184,52 @@ export default function Chat() {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split("\n\n");
+        
+        // Split complete events using blank lines (\n\n or \r\n\r\n)
+        const events = buffer.split(/\r?\n\r?\n/);
         buffer = events.pop() || "";
 
         for (const evt of events) {
           if (!evt.trim()) continue;
-          const lines = evt.split("\n");
+          const lines = evt.split(/\r?\n/);
           let eventType = "token";
           let dataStr = "";
 
           for (const line of lines) {
-            if (line.startswith("event: ") || line.startsWith("event:")) {
-              eventType = line.replace(/event:\s*/, "").trim();
-            } else if (line.startswith("data: ") || line.startsWith("data:")) {
-              dataStr = line.replace(/data:\s*/, "").trim();
+            if (line.startsWith("event:")) {
+              eventType = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              const payloadLine = line.slice(5).trim();
+              dataStr += dataStr ? "\n" + payloadLine : payloadLine;
             }
           }
 
           if (!dataStr) continue;
 
           try {
-            const dataObj = JSON.parse(dataStr);
+            const payload = JSON.parse(dataStr);
 
             if (eventType === "status") {
-              statusText = dataObj.message || "Searching uploaded study materials…";
+              statusText = payload.message || "Searching uploaded study materials…";
             } else if (eventType === "meta") {
-              if (dataObj.display_note) displayNote = dataObj.display_note;
-              if (dataObj.sources) currentSources = dataObj.sources;
+              if (payload.display_note) displayNote = payload.display_note;
+              if (payload.corrected_query !== undefined) correctedQuery = payload.corrected_query;
+              if (payload.sources) currentSources = payload.sources;
             } else if (eventType === "token") {
-              if (dataObj.token) fullTargetText += dataObj.token;
+              const token = payload.token ?? payload.text ?? "";
+              if (token) {
+                fullTargetText += token;
+                statusText = null; // hide status indicator as soon as first token arrives
+              }
             } else if (eventType === "final") {
-              if (dataObj.answer) fullTargetText = dataObj.answer;
-              if (dataObj.sources) currentSources = dataObj.sources;
-              if (dataObj.confidence) confidence = dataObj.confidence;
-              if (dataObj.display_note) displayNote = dataObj.display_note;
+              if (payload.answer) fullTargetText = payload.answer;
+              if (payload.sources) currentSources = payload.sources;
+              if (payload.confidence) confidence = payload.confidence;
+              if (payload.display_note) displayNote = payload.display_note;
+              if (payload.corrected_query !== undefined) correctedQuery = payload.corrected_query;
             }
           } catch (pErr) {
-            // Raw text chunk fallback
-            fullTargetText += dataStr;
+            console.warn("Invalid SSE JSON payload:", dataStr, pErr);
           }
 
           setMessages((prev) => {
@@ -227,6 +240,7 @@ export default function Chat() {
               streaming: true,
               statusText: statusText,
               displayNote: displayNote,
+              correctedQuery: correctedQuery,
               sources: currentSources,
               confidence: confidence
             };
@@ -248,6 +262,7 @@ export default function Chat() {
           streaming: false,
           statusText: null,
           displayNote: displayNote,
+          correctedQuery: correctedQuery,
           sources: currentSources,
           confidence: confidence
         };
@@ -264,6 +279,7 @@ export default function Chat() {
           }
         }).catch((e) => console.error("Failed to save AI message:", e));
       }
+
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("CHAT ERROR:", error);
