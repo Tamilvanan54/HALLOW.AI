@@ -149,8 +149,8 @@ class RAGEngine:
         """
         try:
             is_math = self._classify_query(query)[0]
-            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "1.08"))
-            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.15"))
+            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "0.85"))
+            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.00"))
             threshold = env_math_thresh if is_math else env_thresh
 
             results = self.vectorstore.similarity_search_with_score(query, k=k)
@@ -246,24 +246,29 @@ Answer:"""
 Question: {query}
 
 Instructions:
-1. Provide 2-3 lines of clear explanation based ONLY on the Context.
+1. Provide a concise 3-4 lines explanation based ONLY on the Context.
 2. Leave a blank line, then write "### Example" followed by a practical example.
 
 Answer:"""
 
     def _ensure_example_section(self, answer_text: str, context_text: str) -> str:
-        """Ensure every valid grounded answer contains an '### Example' section."""
-        if "### Example" in answer_text or "Example:" in answer_text:
-            # Format Example: to ### Example
-            formatted = re.sub(r'(?i)\n*\s*\bExample:\s*', r'\n\n### Example\n', answer_text)
-            return formatted
+        """Ensure every valid grounded answer contains exactly ONE '### Example' section."""
+        if not answer_text:
+            return answer_text
+
+        cleaned = answer_text.strip()
+        # Deduplicate any repeated ### Example headers
+        cleaned = re.sub(r'(?:\n*\s*###?\s*Example:?\s*)+', r'\n\n### Example\n', cleaned, flags=re.IGNORECASE)
+
+        if "### Example" in cleaned:
+            return cleaned.strip()
 
         # Check if context contains an example
-        context_lower = context_text.lower()
+        context_lower = context_text.lower() if context_text else ""
         if "example" in context_lower or "for instance" in context_lower or "such as" in context_lower:
-            return f"{answer_text.strip()}\n\n### Example\nExample supported by uploaded document context."
+            return f"{cleaned}\n\n### Example\nExample supported by uploaded document context."
 
-        return f"{answer_text.strip()}\n\n{NO_EXAMPLE_FALLBACK}"
+        return f"{cleaned}\n\n{NO_EXAMPLE_FALLBACK}"
 
     def query_stream_sse(
         self,
