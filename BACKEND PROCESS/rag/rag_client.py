@@ -11,16 +11,20 @@ RAG_URL = os.getenv(
 
 print("RAG URL =", RAG_URL)
 
-def ask_rag(question: str, model_name: str = "qwen3:8b"):
+def ask_rag(question: str, history: list[dict] | None = None, model_name: str = "qwen2.5:3b"):
     try:
         print("QUESTION =", question, "| MODEL =", model_name)
 
+        payload = {
+            "query": question,
+            "model_name": model_name
+        }
+        if history:
+            payload["history"] = history
+
         response = requests.post(
             RAG_URL,
-            json={
-                "query": question,
-                "model_name": model_name
-            },
+            json=payload,
             timeout=30
         )
 

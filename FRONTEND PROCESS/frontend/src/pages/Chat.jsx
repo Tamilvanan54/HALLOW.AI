@@ -255,161 +255,137 @@ localStorage.removeItem(
 
 
     // CREATE CHAT IF NEW
+    if (!chatId) {
+      const title = currentMessage.length > 25
+        ? currentMessage.substring(0, 25) + "..."
+        : currentMessage;
+      const newChat = await addChat(title);
+      fetchChats(); // Fetch chats list in background without blocking stream start
 
-if(!chatId){
+      if (!newChat || !newChat.id) {
+        console.error("CHAT CREATE FAILED");
+        return;
+      }
 
-  const newChat = await addChat(
+      chatId = newChat.id;
+      setCurrentChatId(chatId);
+      localStorage.setItem("activeChatId", String(chatId));
+    }
 
-    currentMessage.length > 25
-      ? currentMessage.substring(0,25) + "..."
-      : currentMessage
-
-  );
-
-  await fetchChats();
-
-console.log("NEW CHAT:", newChat);
-
-console.log(
-  "CHAT HISTORY AFTER ADD:",
-  chatHistory
-);
-
-if(!newChat){
-
-  console.error("CHAT CREATE FAILED");
-
-  return;
-
-}
-
-  if(!newChat.id){
-
-    console.error("CHAT ID MISSING:", newChat);
-
-    return;
-
-  }
-
-  chatId = newChat.id;
-
-  setCurrentChatId(chatId);
-
-  localStorage.setItem(
-    "activeChatId",
-    String(chatId)
-  );
-
-}
-
+    // Capture recent chat history before appending current message
+    const historyPayload = messages.slice(-6).map((m) => ({
+      sender: m.sender,
+      text: m.text
+    }));
 
     // Immediately show User message AND AI Thinking placeholder at 0ms
-setMessages((prev) => [
-  ...prev,
-  {
-    sender: "User",
-    text: currentMessage
-  },
-  {
-    sender: "AI",
-    text: ""
-  }
-]);
-
-try {
-  // Save user message in background without blocking stream start
-  axios.post(
-    `${API_BASE_URL}/save-message`,
-    null,
-    {
-      params: {
-        session_id: chatId,
+    setMessages((prev) => [
+      ...prev,
+      {
         sender: "User",
-        message: currentMessage
-      }
-    }
-  ).catch((e) => console.error("Failed to save user message:", e));
-
-const response = await fetch(
-  `${RAG_BASE_URL}/api/query/stream`,
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      query: currentMessage,
-      model_name: (model === "Llama" || model === "Llama 3.2") ? "llama3.2:3b" : "qwen2.5:3b"
-    })
-  }
-);
-
-const reader = response.body.getReader();
-const decoder = new TextDecoder();
-let fullTargetText = "";
-let displayedText = "";
-let streamFinished = false;
-
-// Progressive word-by-word typewriter pump (renders smoothly in real-time)
-const typeWriterPromise = new Promise((resolve) => {
-  const ticker = setInterval(() => {
-    if (displayedText.length < fullTargetText.length) {
-      const remaining = fullTargetText.slice(displayedText.length);
-      const lag = remaining.length;
-
-      // Adaptive step size: word-by-word typing with speed catch-up if buffer grows
-      let step = 1;
-      if (lag > 60) {
-        step = Math.min(lag, 8);
-      } else if (lag > 25) {
-        step = Math.min(lag, 4);
-      } else {
-        const nextSpace = remaining.search(/\s/);
-        step = (nextSpace !== -1 && nextSpace < 6) ? nextSpace + 1 : Math.min(2, remaining.length);
-      }
-
-      displayedText += remaining.slice(0, step);
-
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          sender: "AI",
-          text: displayedText,
-          streaming: true
-        };
-        return updated;
-      });
-    } else if (streamFinished) {
-      clearInterval(ticker);
-      resolve();
-    }
-  }, 12);
-});
-
-// Read incoming network stream chunks with instant first-token reveal
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  const chunk = decoder.decode(value, { stream: true });
-  fullTargetText += chunk;
-
-  // Reveal first word immediately for 0ms initial TTFT
-  if (!displayedText && fullTargetText) {
-    const firstSpace = fullTargetText.search(/\s/);
-    const initialCut = (firstSpace !== -1 && firstSpace < 12) ? firstSpace + 1 : Math.min(6, fullTargetText.length);
-    displayedText = fullTargetText.slice(0, initialCut);
-    setMessages((prev) => {
-      const updated = [...prev];
-      updated[updated.length - 1] = {
+        text: currentMessage
+      },
+      {
         sender: "AI",
-        text: displayedText,
-        streaming: true
-      };
-      return updated;
-    });
-  }
-}
-streamFinished = true;
+        text: ""
+      }
+    ]);
+
+    try {
+      // Save user message in background without blocking stream start
+      if (chatId) {
+        axios.post(
+          `${API_BASE_URL}/save-message`,
+          null,
+          {
+            params: {
+              session_id: chatId,
+              sender: "User",
+              message: currentMessage
+            }
+          }
+        ).catch((e) => console.error("Failed to save user message:", e));
+      }
+
+      const response = await fetch(
+        `${RAG_BASE_URL}/api/query/stream`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            query: currentMessage,
+            history: historyPayload,
+            model_name: (model === "Llama" || model === "Llama 3.2") ? "llama3.2:3b" : "qwen2.5:3b"
+          })
+        }
+      );
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullTargetText = "";
+      let displayedText = "";
+      let streamFinished = false;
+
+      // Progressive typewriter pump (renders smoothly in real-time)
+      const typeWriterPromise = new Promise((resolve) => {
+        const ticker = setInterval(() => {
+          if (displayedText.length < fullTargetText.length) {
+            const remaining = fullTargetText.slice(displayedText.length);
+            const lag = remaining.length;
+
+            // Adaptive step size: typing with speed catch-up if network buffer grows
+            let step = 1;
+            if (lag > 60) {
+              step = Math.min(lag, 8);
+            } else if (lag > 25) {
+              step = Math.min(lag, 4);
+            } else {
+              const nextSpace = remaining.search(/\s/);
+              step = (nextSpace !== -1 && nextSpace < 6) ? nextSpace + 1 : Math.min(2, remaining.length);
+            }
+
+            displayedText += remaining.slice(0, step);
+
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                sender: "AI",
+                text: displayedText,
+                streaming: true
+              };
+              return updated;
+            });
+          } else if (streamFinished) {
+            clearInterval(ticker);
+            resolve();
+          }
+        }, 12);
+      });
+
+      // Read incoming network stream chunks with instant first-token reveal
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        fullTargetText += chunk;
+
+        // Reveal first token/word immediately for 0ms initial TTFT
+        if (!displayedText && fullTargetText) {
+          displayedText = fullTargetText;
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              sender: "AI",
+              text: displayedText,
+              streaming: true
+            };
+            return updated;
+          });
+        }
+      }
+      streamFinished = true;
 
 // Await completion of word-by-word typing animation
 await typeWriterPromise;
