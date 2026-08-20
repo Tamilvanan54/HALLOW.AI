@@ -113,6 +113,10 @@ class RAGEngine:
         k=3
     ):
         try:
+            is_math = self._classify_query(query)[0]
+            # Math queries with equations need threshold 1.15 to capture formulas
+            threshold = 1.15 if is_math else 0.92
+
             results = self.vectorstore.similarity_search_with_score(query, k=k)
             if not results:
                 print("[RAG] No matching documents found")
@@ -121,17 +125,18 @@ class RAGEngine:
             valid_docs = []
             for doc, score in results:
                 print(f"[RAG] Query: '{query[:25]}' | Doc score: {score}")
-                # Relevance score threshold: score < 0.85 accepts RAG docs and rejects non-RAG queries
-                if score < 0.85:
+                if score < threshold:
                     valid_docs.append(doc)
 
             if not valid_docs:
                 print(f"[RAG] Question '{query[:30]}' is NOT in RAG documents -> returning empty context")
                 return "", []
 
+            # Math formulas need 700 chars context to capture complete step-by-step working
+            context_limit = 700 if is_math else 380
             context_text = "\n\n".join(
                 [doc.page_content for doc in valid_docs]
-            )[:380]
+            )[:context_limit]
 
             return context_text, valid_docs
 
