@@ -121,8 +121,8 @@ class RAGEngine:
     ):
         try:
             is_math = self._classify_query(query)[0]
-            # Math queries with equations need threshold 1.15 to capture formulas
-            threshold = 1.15 if is_math else 0.92
+            # Math queries use threshold 1.15, text queries use 1.08 for contextual follow-up matching
+            threshold = 1.15 if is_math else 1.08
 
             results = self.vectorstore.similarity_search_with_score(query, k=k)
             if not results:
@@ -139,8 +139,8 @@ class RAGEngine:
                 print(f"[RAG] Question '{query[:30]}' is NOT in RAG documents -> returning empty context")
                 return "", []
 
-            # 300 char context slice for fast sub-500ms TTFT
-            context_limit = 550 if is_math else 300
+            # 320 char context slice for sub-500ms TTFT
+            context_limit = 550 if is_math else 320
             context_text = "\n\n".join(
                 [doc.page_content for doc in valid_docs]
             )[:context_limit]
@@ -374,9 +374,6 @@ Answer:"""
         history: str | None = None
     ) -> Generator[str, None, None]:
         print(f"[STREAM] Starting query_stream for: {query_text}")
-
-        # Flush initial byte immediately so browser receives 15ms TTFT response header
-        yield ""
 
         corrected = self._check_feedback_correction(query_text)
         if corrected:
