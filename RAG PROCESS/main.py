@@ -145,15 +145,22 @@ def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
         print(f"⚠️ Fast HuggingFaceEmbeddings unavailable ({e}). Falling back to OllamaEmbeddings...")
         embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
-    # Fast startup: If persistent database already exists, load it immediately without re-indexing
+    # Fast startup: If persistent database already exists and contains documents, load it immediately
     if os.path.exists(CHROMA_PERSIST_DIR) and os.path.isdir(CHROMA_PERSIST_DIR) and len(os.listdir(CHROMA_PERSIST_DIR)) > 0:
         print("⚡ Loading existing persistent Chroma vector database...")
-        vectorstore = Chroma(
-            persist_directory=CHROMA_PERSIST_DIR,
-            embedding_function=embeddings,
-        )
-        print("✅ Vector database loaded instantly in 0.5s!")
-        return vectorstore, set()
+        try:
+            vectorstore = Chroma(
+                persist_directory=CHROMA_PERSIST_DIR,
+                embedding_function=embeddings,
+            )
+            doc_count = vectorstore._collection.count()
+            print(f"📊 Vectorstore contains {doc_count} document chunks.")
+            if doc_count > 0:
+                print("✅ Vector database loaded successfully!")
+                return vectorstore, set()
+            print("⚠️ Persistent Chroma database is empty (0 chunks). Triggering full fresh indexing...")
+        except Exception as err:
+            print(f"⚠️ Warning checking vector database: {err}. Rebuilding...")
 
     docs, pdf_vocab = load_all_pdfs()
 
