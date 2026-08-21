@@ -47,36 +47,29 @@ def extract_pdf_documents(pdf_path: str) -> list[Document]:
             page = doc[page_num]
             text = page.get_text("text").strip()
 
-            # If page has no digital text (scanned image page), run fast OCR
+            # If page lacks digital text (scanned image page), run fast Tesseract OCR
             if not text or len(text) < 15:
                 try:
-                    pix = page.get_pixmap(dpi=120)
-                    img_bytes = pix.tobytes("png")
-                    img = Image.open(io.BytesIO(img_bytes))
+                    images = page.get_images(full=True)
+                    if images:
+                        pix = page.get_pixmap(dpi=120)
+                        img_bytes = pix.tobytes("png")
+                        img = Image.open(io.BytesIO(img_bytes))
 
-                    if ocr_type is None:
-                        try:
-                            import pytesseract
-                            pytesseract.image_to_string(img)
-                            ocr_type = "tesseract"
-                            ocr_engine = pytesseract
-                            print("   ⚡ Using ultra-fast Tesseract-OCR engine for scanned pages!")
-                        except Exception:
+                        if ocr_engine is None:
                             try:
-                                import easyocr
-                                ocr_type = "easyocr"
-                                ocr_engine = easyocr.Reader(["en"], gpu=False)
-                                print("   📷 Using EasyOCR engine for scanned pages...")
+                                import pytesseract
+                                pytesseract.image_to_string(img)
+                                ocr_engine = pytesseract
                             except Exception:
-                                ocr_type = "none"
+                                ocr_engine = False
 
-                    if ocr_type == "tesseract":
-                        text = ocr_engine.image_to_string(img).strip()
-                    elif ocr_type == "easyocr":
-                        ocr_results = ocr_engine.readtext(img_bytes, detail=0)
-                        text = " ".join(ocr_results).strip()
+                        if ocr_engine:
+                            ocr_text = ocr_engine.image_to_string(img).strip()
+                            if ocr_text:
+                                text = ocr_text
                 except Exception as ocr_err:
-                    print(f"   ⚠️ Page {page_num + 1} OCR extraction note: {ocr_err}")
+                    print(f"   ⚠️ Page {page_num + 1} OCR note: {ocr_err}")
 
             if text and text.strip():
                 documents.append(
@@ -91,8 +84,8 @@ def extract_pdf_documents(pdf_path: str) -> list[Document]:
     return documents
 
 def load_all_pdfs() -> tuple[list[Document], set[str]]:
-    """Find and chunk all PDFs across ./data, ./uploads, ../uploads, and project root folders."""
-    search_dirs = ["./data", "../uploads", "./uploads", "../BACKEND PROCESS/uploads", "..", "."]
+    """Find and chunk all PDFs inside ./data and uploads folders."""
+    search_dirs = ["./data", "../uploads", "./uploads", "../BACKEND PROCESS/uploads"]
     pdf_files = []
 
     for d in search_dirs:
