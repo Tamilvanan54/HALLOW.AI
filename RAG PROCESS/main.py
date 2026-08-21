@@ -303,10 +303,19 @@ def health_check():
 
 @app.post("/api/ingest")
 def handle_ingest(request: IngestRequest | None = None):
-    """Ingest newly uploaded documents from ./data folder into Chroma vectorstore."""
+    """Ingest newly uploaded documents from ./data folder into Chroma vectorstore asynchronously."""
     global engine
-    chunks_count = reload_vectorstore()
-    return {"status": "success", "message": "Documents ingested successfully", "chunks": chunks_count}
+    import threading
+    def _async_ingest():
+        try:
+            print("⏳ Background document indexing started...")
+            chunks = reload_vectorstore()
+            print(f"✅ Background indexing complete with {chunks} chunks!")
+        except Exception as err:
+            print(f"❌ Background indexing error: {err}")
+
+    threading.Thread(target=_async_ingest, daemon=True).start()
+    return {"status": "success", "message": "Document indexing started in background"}
 
 @app.post("/api/delete-doc")
 def handle_delete_doc(request: DeleteDocRequest):
