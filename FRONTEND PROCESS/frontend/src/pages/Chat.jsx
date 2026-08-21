@@ -193,7 +193,15 @@ export default function Chat() {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+        console.error(`RAG API returned status ${response.status}`);
+        updateCurrentAiMessage({
+          text: "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.",
+          streaming: false,
+          status: false,
+          confidence: "refused"
+        });
+        setIsGenerating(false);
+        return;
       }
 
       const reader = response.body.getReader();
