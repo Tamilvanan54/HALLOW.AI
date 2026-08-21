@@ -151,9 +151,13 @@ class RAGEngine:
         Returns: (context_text, valid_docs, raw_sources_metadata)
         """
         try:
+            if not self.vectorstore:
+                print("[RAG] Vectorstore is not initialized.")
+                return "", [], []
+
             is_math = self._classify_query(query)[0]
-            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "1.15"))
-            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.25"))
+            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "1.45"))
+            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.55"))
             threshold = env_math_thresh if is_math else env_thresh
 
             search_queries = [query]
