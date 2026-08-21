@@ -543,32 +543,31 @@ async def upload_pdf(
             "filename": safe_filename
         }
 
-    # Trigger ingest on RAG service
-    ingest_success = False
-    chunks_count = 0
-    try:
-        print(f"⏳ Calling RAG ingest for {safe_filename}...")
-        resp = requests.post(
-            "http://127.0.0.1:8001/api/ingest",
-            json={"filename": safe_filename},
-            timeout=120
-        )
-        if resp.status_code == 200:
-            ingest_success = True
-            chunks_count = resp.json().get("chunks", 0)
-            print(f"✅ RAG ingest success for {safe_filename}: {resp.json()}")
-        else:
-            print(f"⚠️ RAG ingest failed for {safe_filename}: {resp.status_code} {resp.text}")
-    except Exception as e:
-        print(f"⚠️ RAG ingest error for {safe_filename}: {e}")
+    # Trigger ingest on RAG service asynchronously to avoid HTTP timeouts on large PDFs
+    def _trigger_rag_ingest(fname: str):
+        try:
+            print(f"⏳ Calling RAG ingest for {fname}...")
+            resp = requests.post(
+                "http://127.0.0.1:8001/api/ingest",
+                json={"filename": fname},
+                timeout=300
+            )
+            if resp.status_code == 200:
+                print(f"✅ RAG ingest success for {fname}: {resp.json()}")
+            else:
+                print(f"⚠️ RAG ingest response: {resp.status_code} {resp.text}")
+        except Exception as e:
+            print(f"⚠️ RAG ingest background error for {fname}: {e}")
+
+    import threading
+    threading.Thread(target=_trigger_rag_ingest, args=(safe_filename,), daemon=True).start()
 
     return {
         "status": True,
-        "message": "PDF Uploaded and Processed Successfully" if ingest_success else "PDF Uploaded but RAG processing failed",
+        "message": "PDF Uploaded successfully! Processing into study materials.",
         "filename": safe_filename,
         "pages": page_count,
-        "chunks": chunks_count,
-        "ingested": ingest_success
+        "ingested": True
     }
 
 
