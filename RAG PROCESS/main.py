@@ -32,33 +32,48 @@ engine: RAGEngine | None = None
 CHROMA_PERSIST_DIR = "./chroma_db"
 
 def extract_pdf_documents(pdf_path: str) -> list[Document]:
-    """Extract text from a PDF file on a per-page basis using PyMuPDF and EasyOCR for scanned image pages."""
+    """Extract text from a PDF file on a per-page basis using PyMuPDF and Tesseract/EasyOCR for scanned image pages."""
+    import io
+    from PIL import Image
+
     documents = []
     file_name = os.path.basename(pdf_path)
     try:
         doc = fitz.open(pdf_path)
-        ocr_reader = None
+        ocr_type = None
+        ocr_engine = None
+
         for page_num in range(len(doc)):
             page = doc[page_num]
             text = page.get_text("text").strip()
 
-            # If page has no digital text (scanned image page), run EasyOCR on page image
+            # If page has no digital text (scanned image page), run fast OCR
             if not text or len(text) < 15:
                 try:
-                    pix = page.get_pixmap(dpi=100)
+                    pix = page.get_pixmap(dpi=120)
                     img_bytes = pix.tobytes("png")
+                    img = Image.open(io.BytesIO(img_bytes))
 
-                    if ocr_reader is None:
+                    if ocr_type is None:
                         try:
-                            import easyocr
-                            print("   📷 Initializing EasyOCR for scanned image pages...")
-                            ocr_reader = easyocr.Reader(["en"], gpu=False)
-                        except Exception as e:
-                            print(f"   ⚠️ EasyOCR unavailable: {e}")
-                            ocr_reader = False
+                            import pytesseract
+                            pytesseract.image_to_string(img)
+                            ocr_type = "tesseract"
+                            ocr_engine = pytesseract
+                            print("   ⚡ Using ultra-fast Tesseract-OCR engine for scanned pages!")
+                        except Exception:
+                            try:
+                                import easyocr
+                                ocr_type = "easyocr"
+                                ocr_engine = easyocr.Reader(["en"], gpu=False)
+                                print("   📷 Using EasyOCR engine for scanned pages...")
+                            except Exception:
+                                ocr_type = "none"
 
-                    if ocr_reader:
-                        ocr_results = ocr_reader.readtext(img_bytes, detail=0)
+                    if ocr_type == "tesseract":
+                        text = ocr_engine.image_to_string(img).strip()
+                    elif ocr_type == "easyocr":
+                        ocr_results = ocr_engine.readtext(img_bytes, detail=0)
                         text = " ".join(ocr_results).strip()
                 except Exception as ocr_err:
                     print(f"   ⚠️ Page {page_num + 1} OCR extraction note: {ocr_err}")
