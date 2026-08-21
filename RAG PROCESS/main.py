@@ -240,6 +240,16 @@ def reload_vectorstore():
     """Rebuild Chroma vector store to reflect current PDFs in ./data folder."""
     global engine
     print("⏳ Rebuilding vector store from current documents in ./data...")
+
+    # Safely release open SQLite handles before rebuilding
+    if engine and hasattr(engine, "vectorstore") and engine.vectorstore:
+        try:
+            if hasattr(engine.vectorstore, "_client"):
+                engine.vectorstore._client.reset()
+        except Exception:
+            pass
+        engine.vectorstore = None
+
     try:
         try:
             from langchain_huggingface import HuggingFaceEmbeddings
