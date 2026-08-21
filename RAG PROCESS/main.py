@@ -312,9 +312,6 @@ def health_check():
 def handle_ingest(request: IngestRequest | None = None):
     """Ingest newly uploaded documents from ./data folder into Chroma vectorstore."""
     global engine
-    if not engine:
-        raise HTTPException(status_code=503, detail="RAG Engine is not initialized")
-
     chunks_count = reload_vectorstore()
     return {"status": "success", "message": "Documents ingested successfully", "chunks": chunks_count}
 
@@ -372,9 +369,10 @@ def handle_query(request: QueryRequest):
 def handle_query_stream(request: QueryRequest):
     """SSE streaming endpoint returning status, meta, tokens, and final response metadata."""
     if not engine:
-        raise HTTPException(status_code=503, detail="RAG Engine is not initialized")
+        print("⏳ Lazily initializing RAG engine on query request...")
+        reload_vectorstore()
 
-    if request.model_name:
+    if request.model_name and engine:
         engine.set_model(request.model_name)
 
     return StreamingResponse(
