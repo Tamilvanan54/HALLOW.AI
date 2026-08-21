@@ -256,15 +256,6 @@ def reload_vectorstore():
     global engine
     print("⏳ Rebuilding vector store from current documents in ./data...")
 
-    # Safely release open SQLite handles before rebuilding
-    if engine and hasattr(engine, "vectorstore") and engine.vectorstore:
-        try:
-            if hasattr(engine.vectorstore, "_client"):
-                engine.vectorstore._client.reset()
-        except Exception:
-            pass
-        engine.vectorstore = None
-
     try:
         try:
             from langchain_huggingface import HuggingFaceEmbeddings
@@ -278,14 +269,14 @@ def reload_vectorstore():
     except Exception:
         embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
+    docs, pdf_vocab = load_all_pdfs()
+
     if os.path.exists(CHROMA_PERSIST_DIR):
         try:
             import shutil
             shutil.rmtree(CHROMA_PERSIST_DIR, ignore_errors=True)
         except Exception as e:
             print(f"⚠️ Warning clearing chroma_db: {e}")
-
-    docs, pdf_vocab = load_all_pdfs()
     if not docs:
         print("⚠️ No documents remaining in ./data folder.")
         new_vectorstore = Chroma(
