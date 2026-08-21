@@ -62,7 +62,7 @@ export default function Library() {
 
       setUploading(true);
 
-      await axios.post(
+      const response = await axios.post(
         `${API_BASE_URL}/upload-pdf`,
         formData,
         {
@@ -73,10 +73,13 @@ export default function Library() {
         }
       );
 
-      await fetchPDFs();
-
-      setFile(null);
-      alert("PDF Uploaded and processed successfully!");
+      if (response.data && response.data.status === false) {
+        alert(response.data.message || "Failed to upload PDF.");
+      } else {
+        await fetchPDFs();
+        setFile(null);
+        alert("PDF Uploaded and processed successfully!");
+      }
 
     } catch (error) {
 
