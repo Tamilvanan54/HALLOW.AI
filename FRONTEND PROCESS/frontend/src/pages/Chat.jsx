@@ -149,7 +149,7 @@ export default function Chat() {
       { sender: "User", text: currentMessage },
       {
         sender: "AI",
-        text: "Searching uploaded study materials…",
+        text: "",
         streaming: true,
         status: true,
         statusText: "Searching uploaded study materials…",
@@ -216,28 +216,37 @@ export default function Chat() {
           for (const rawEvent of completeEvents) {
             if (!rawEvent.trim()) continue;
 
-            const eventMatch = rawEvent.match(/^event:\s*(.+)$/m);
-            const dataMatch = rawEvent.match(/^data:\s*(.+)$/m);
+            let eventName = "message";
+            let dataStr = "";
 
-            if (!dataMatch) continue;
+            const lines = rawEvent.split(/\r?\n/);
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (trimmed.startsWith("event:")) {
+                eventName = trimmed.slice(6).trim();
+              } else if (trimmed.startsWith("data:")) {
+                const content = trimmed.slice(5).trim();
+                dataStr += dataStr ? "\n" + content : content;
+              }
+            }
 
-            const eventName = eventMatch?.[1]?.trim() || "message";
+            if (!dataStr) continue;
 
             let payload;
             try {
-              payload = JSON.parse(dataMatch[1]);
-            } catch {
-              console.warn("Invalid SSE JSON ignored:", rawEvent);
+              payload = JSON.parse(dataStr);
+            } catch (e) {
+              console.warn("Invalid SSE JSON payload:", dataStr, e);
               continue;
             }
 
             if (eventName === "status") {
-              // Show only clean status text — never event/data JSON
+              // Keep text empty while status indicator is active
               updateCurrentAiMessage({
-                text: payload.message || "Searching uploaded study materials…",
+                text: "",
                 streaming: true,
-                statusText: payload.message || "Searching uploaded study materials…",
                 status: true,
+                statusText: payload.message || "Searching uploaded study materials…",
                 sources: []
               });
             }
@@ -245,7 +254,13 @@ export default function Chat() {
             if (eventName === "meta") {
               sources = payload.sources || [];
               correctedQuery = payload.corrected_query || payload.display_note || null;
-              // Never render this event as chat text
+              updateCurrentAiMessage({
+                streaming: true,
+                status: true,
+                statusText: "Searching uploaded study materials…",
+                correctedQuery: correctedQuery,
+                sources: sources
+              });
             }
 
             if (eventName === "token") {
@@ -276,7 +291,7 @@ export default function Chat() {
                 statusText: null,
                 sources: sources,
                 correctedQuery: correctedQuery,
-                confidence: payload.confidence,
+                confidence: payload.confidence || "grounded",
                 refusalReason: payload.refusal_reason
               });
             }

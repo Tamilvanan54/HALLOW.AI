@@ -8,7 +8,8 @@ const formatMathText = (text) => {
 
   // Defensive check: strip any residual raw SSE protocol string if unparsed
   formatted = formatted.replace(/^event:\s*\w+\s*\n+data:\s*\{.*?\}/gis, "");
-  formatted = formatted.replace(/(?:\n|^)data:\s*\{"token":"(.*?)"\}/gi, "$1");
+  formatted = formatted.replace(/(?:\n|^)data:\s*\{.*?\}/gis, "");
+  formatted = formatted.replace(/^event:.*$/gm, "");
 
   // Deduplicate any repeated ### Example headings
   formatted = formatted.replace(/(?:\n*\s*###?\s*(?:Example|[A-Za-z0-9_\s]*Example):?\s*)+/gi, "\n\n### Example\n");
@@ -201,7 +202,7 @@ export default function ChatWindow({ messages }) {
                 )}
 
                 {/* 2. Streaming Status Indicator */}
-                {msg.streaming && (msg.status || msg.statusText) && !msg.text && (
+                {msg.streaming && msg.status && (
                   <div
                     style={{
                       color: "#38bdf8",
@@ -236,7 +237,7 @@ export default function ChatWindow({ messages }) {
                     {msg.text || "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question."}
                   </div>
                 ) : (
-                  msg.text || msg.streaming ? (
+                  (msg.text || (msg.streaming && !msg.status)) && (
                     <>
                       {formatMathText(msg.text)}
                       {msg.streaming && !msg.status && (
@@ -253,10 +254,6 @@ export default function ChatWindow({ messages }) {
                         />
                       )}
                     </>
-                  ) : (
-                    <span style={{ color: "#9ca3af", fontStyle: "italic" }}>
-                      Searching uploaded study materials…
-                    </span>
                   )
                 )}
 
