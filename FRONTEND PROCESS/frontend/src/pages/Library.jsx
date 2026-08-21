@@ -82,10 +82,13 @@ export default function Library() {
       }
 
     } catch (error) {
-
-      console.error(error);
-      alert("Failed to upload PDF. Please make sure the backend is running.");
-
+      console.error("PDF UPLOAD ERROR:", error);
+      const serverMsg = error.response?.data?.message || error.response?.data?.detail || error.response?.statusText;
+      if (serverMsg) {
+        alert(`Upload Failed: ${serverMsg}`);
+      } else {
+        alert("Failed to upload PDF. Please check server connection.");
+      }
     } finally {
 
       setUploading(false);
