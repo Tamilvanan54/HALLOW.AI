@@ -209,6 +209,18 @@ export default function Chat() {
       const processSingleSseEvent = (eventName, dataStr) => {
         if (!dataStr) return;
 
+        // Intercept any HTML error pages (e.g. 502 Bad Gateway) from Nginx
+        if (dataStr.startsWith("<") || dataStr.includes("<html>") || dataStr.includes("502 Bad Gateway")) {
+          console.warn("Received HTML error page from server:", dataStr);
+          updateCurrentAiMessage({
+            text: "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.",
+            streaming: false,
+            status: false,
+            confidence: "refused"
+          });
+          return;
+        }
+
         let payload;
         try {
           payload = JSON.parse(dataStr);
