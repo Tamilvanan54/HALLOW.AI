@@ -498,26 +498,12 @@ async def upload_pdf(
                 "filename": safe_filename
             }
 
-        # 4. Scanned PDF text extractability check
+        # 4. Scanned & digital PDF check - accept all readable PDF documents
         try:
             doc = fitz.open(stream=content, filetype="pdf")
             page_count = len(doc)
-            text_samples = []
-            for i in range(min(page_count, 15)):
-                try:
-                    text_samples.append(doc[i].get_text("text").strip())
-                except Exception:
-                    pass
             doc.close()
-            total_text = "".join(text_samples)
-
-            if len(total_text) < 10 and page_count > 0:
-                print(f"⚠️ Scanned PDF detected (sample text length: {len(total_text)}): {safe_filename}")
-                return {
-                    "status": False,
-                    "message": "Scanned PDF with no extractable text detected. Please upload a PDF with readable text.",
-                    "filename": safe_filename
-                }
+            print(f"ℹ️ PDF accepted: {safe_filename} ({page_count} pages)")
         except Exception as e:
             print(f"⚠️ PDF inspection note: {e}")
 

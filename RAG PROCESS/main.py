@@ -32,14 +32,37 @@ engine: RAGEngine | None = None
 CHROMA_PERSIST_DIR = "./chroma_db"
 
 def extract_pdf_documents(pdf_path: str) -> list[Document]:
-    """Extract text from a PDF file on a per-page basis using PyMuPDF."""
+    """Extract text from a PDF file on a per-page basis using PyMuPDF and EasyOCR for scanned image pages."""
     documents = []
     file_name = os.path.basename(pdf_path)
     try:
         doc = fitz.open(pdf_path)
+        ocr_reader = None
         for page_num in range(len(doc)):
             page = doc[page_num]
-            text = page.get_text("text")
+            text = page.get_text("text").strip()
+
+            # If page has no digital text (scanned image page), run EasyOCR on page image
+            if not text or len(text) < 15:
+                try:
+                    pix = page.get_pixmap(dpi=150)
+                    img_bytes = pix.tobytes("png")
+
+                    if ocr_reader is None:
+                        try:
+                            import easyocr
+                            print("   📷 Initializing EasyOCR for scanned image pages...")
+                            ocr_reader = easyocr.Reader(["en"], gpu=False)
+                        except Exception as e:
+                            print(f"   ⚠️ EasyOCR unavailable: {e}")
+                            ocr_reader = False
+
+                    if ocr_reader:
+                        ocr_results = ocr_reader.readtext(img_bytes, detail=0)
+                        text = " ".join(ocr_results).strip()
+                except Exception as ocr_err:
+                    print(f"   ⚠️ Page {page_num + 1} OCR extraction note: {ocr_err}")
+
             if text and text.strip():
                 documents.append(
                     Document(
