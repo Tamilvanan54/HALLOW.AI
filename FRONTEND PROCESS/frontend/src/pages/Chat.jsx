@@ -123,7 +123,7 @@ export default function Chat() {
     });
   };
 
-  // SEND MESSAGE WITH EXACT COMPLIANT SSE STREAM PARSER
+  // SEND MESSAGE WITH W3C-COMPLIANT SSE STREAM ACCUMULATOR
   const sendMessage = async () => {
     if (!message.trim() || isGenerating) return;
 
@@ -144,6 +144,7 @@ export default function Chat() {
       localStorage.setItem("activeChatId", String(chatId));
     }
 
+    // Initialize AI message state with EMPTY text during searching phase
     setMessages((prev) => [
       ...prev,
       { sender: "User", text: currentMessage },
@@ -196,12 +197,72 @@ export default function Chat() {
       }
 
       const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder("utf-8");
 
       let buffer = "";
       let currentAnswer = "";
       let sources = [];
       let correctedQuery = null;
+      let currentEventName = null;
+      let currentDataLines = [];
+
+      const processSingleSseEvent = (eventName, dataStr) => {
+        if (!dataStr) return;
+
+        let payload;
+        try {
+          payload = JSON.parse(dataStr);
+        } catch (e) {
+          console.warn("Invalid SSE JSON payload ignored:", dataStr, e);
+          return;
+        }
+
+        if (eventName === "status") {
+          updateCurrentAiMessage({
+            text: "",
+            streaming: true,
+            status: true,
+            statusText: payload.message || "Searching uploaded study materials…",
+            sources: []
+          });
+        } else if (eventName === "meta") {
+          sources = payload.sources || sources;
+          correctedQuery = payload.corrected_query || payload.display_note || correctedQuery;
+          updateCurrentAiMessage({
+            streaming: true,
+            status: true,
+            statusText: "Searching uploaded study materials…",
+            correctedQuery: correctedQuery,
+            sources: sources
+          });
+        } else if (eventName === "token") {
+          const token = payload.token ?? payload.text ?? "";
+          if (token) {
+            currentAnswer += token;
+            updateCurrentAiMessage({
+              text: currentAnswer,
+              streaming: true,
+              status: false,
+              statusText: null
+            });
+          }
+        } else if (eventName === "final") {
+          currentAnswer = cleanAnswerText(payload.answer || currentAnswer);
+          sources = payload.sources || sources;
+          correctedQuery = payload.corrected_query || payload.display_note || correctedQuery;
+
+          updateCurrentAiMessage({
+            text: currentAnswer,
+            streaming: false,
+            status: false,
+            statusText: null,
+            sources: sources,
+            correctedQuery: correctedQuery,
+            confidence: payload.confidence || "grounded",
+            refusalReason: payload.refusal_reason
+          });
+        }
+      };
 
       while (true) {
         const { value, done } = await reader.read();
@@ -209,96 +270,40 @@ export default function Chat() {
         if (value) {
           buffer += decoder.decode(value, { stream: true });
 
-          // Supports both LF and CRLF SSE separators
-          const completeEvents = buffer.split(/\r?\n\r?\n/);
-          buffer = completeEvents.pop() || "";
+          const lines = buffer.split(/\r?\n/);
+          // Keep incomplete trailing line in buffer
+          buffer = lines.pop() || "";
 
-          for (const rawEvent of completeEvents) {
-            if (!rawEvent.trim()) continue;
+          for (const line of lines) {
+            const trimmed = line.trim();
 
-            let eventName = "message";
-            let dataStr = "";
+            if (trimmed.startsWith("event:")) {
+              currentEventName = trimmed.slice(6).trim();
+            } else if (trimmed.startsWith("data:")) {
+              currentDataLines.push(trimmed.slice(5).trim());
+            } else if (trimmed === "") {
+              // Blank line signifies boundary of an SSE event block
+              if (currentDataLines.length > 0) {
+                const dataStr = currentDataLines.join("\n");
+                const eventName = currentEventName || "message";
 
-            const lines = rawEvent.split(/\r?\n/);
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (trimmed.startsWith("event:")) {
-                eventName = trimmed.slice(6).trim();
-              } else if (trimmed.startsWith("data:")) {
-                const content = trimmed.slice(5).trim();
-                dataStr += dataStr ? "\n" + content : content;
+                processSingleSseEvent(eventName, dataStr);
+
+                currentEventName = null;
+                currentDataLines = [];
               }
-            }
-
-            if (!dataStr) continue;
-
-            let payload;
-            try {
-              payload = JSON.parse(dataStr);
-            } catch (e) {
-              console.warn("Invalid SSE JSON payload:", dataStr, e);
-              continue;
-            }
-
-            if (eventName === "status") {
-              // Keep text empty while status indicator is active
-              updateCurrentAiMessage({
-                text: "",
-                streaming: true,
-                status: true,
-                statusText: payload.message || "Searching uploaded study materials…",
-                sources: []
-              });
-            }
-
-            if (eventName === "meta") {
-              sources = payload.sources || [];
-              correctedQuery = payload.corrected_query || payload.display_note || null;
-              updateCurrentAiMessage({
-                streaming: true,
-                status: true,
-                statusText: "Searching uploaded study materials…",
-                correctedQuery: correctedQuery,
-                sources: sources
-              });
-            }
-
-            if (eventName === "token") {
-              const token = payload.token ?? payload.text ?? "";
-
-              if (!token) continue;
-
-              currentAnswer += token;
-
-              updateCurrentAiMessage({
-                text: currentAnswer,
-                streaming: true,
-                status: false,
-                statusText: null,
-                sources: []
-              });
-            }
-
-            if (eventName === "final") {
-              currentAnswer = cleanAnswerText(payload.answer || currentAnswer);
-              sources = payload.sources || sources;
-              correctedQuery = payload.corrected_query || payload.display_note || correctedQuery;
-
-              updateCurrentAiMessage({
-                text: currentAnswer,
-                streaming: false,
-                status: false,
-                statusText: null,
-                sources: sources,
-                correctedQuery: correctedQuery,
-                confidence: payload.confidence || "grounded",
-                refusalReason: payload.refusal_reason
-              });
             }
           }
         }
 
         if (done) break;
+      }
+
+      // Process any remaining event in buffer after stream ends
+      if (currentDataLines.length > 0) {
+        const dataStr = currentDataLines.join("\n");
+        const eventName = currentEventName || "message";
+        processSingleSseEvent(eventName, dataStr);
       }
 
       if (!currentAnswer || !currentAnswer.trim()) {
