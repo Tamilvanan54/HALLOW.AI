@@ -45,7 +45,7 @@ def extract_pdf_documents(pdf_path: str) -> list[Document]:
             # If page has no digital text (scanned image page), run EasyOCR on page image
             if not text or len(text) < 15:
                 try:
-                    pix = page.get_pixmap(dpi=150)
+                    pix = page.get_pixmap(dpi=100)
                     img_bytes = pix.tobytes("png")
 
                     if ocr_reader is None:
