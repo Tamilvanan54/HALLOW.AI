@@ -120,11 +120,14 @@ class RAGEngine:
             "matrix", "algebra", "calculus", "limit", "theorem", "proof",
             "domain", "formula", "roots", "quadratic", "sum", "multiply",
             "function", "f(x)", "y =", "x2y", "range", "inverse",
-            "trigonometry", "sin", "cos", "tan", "log", "ln"
+            "trigonometry", "sin", "cos", "tan", "log", "ln",
+            "logic", "logical", "equivalence", "equivalences", "proposition",
+            "propositional", "truth", "table", "statement", "quantifier",
+            "predicates", "inference", "tautology", "contradiction"
         ]
         is_math = (
             any(k in query_lower for k in math_keywords)
-            or any(s in query for s in ["=", "+", "*", "/", "^", "²", "³", "√", "↔", "<->", "->"])
+            or any(s in query for s in ["=", "+", "*", "/", "^", "²", "³", "√", "↔", "<->", "->", "≡", "¬", "∧", "∨"])
         )
 
         big_keywords = [
@@ -149,11 +152,23 @@ class RAGEngine:
         """
         try:
             is_math = self._classify_query(query)[0]
-            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "0.92"))
-            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.10"))
+            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "1.15"))
+            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.25"))
             threshold = env_math_thresh if is_math else env_thresh
 
-            results = self.vectorstore.similarity_search_with_score(query, k=k)
+            search_queries = [query]
+            q_low = query.lower()
+            if "logic" in q_low or "equivalen" in q_low or "table" in q_low:
+                search_queries.append("logical equivalences laws identity commutative associative distributive de morgan tautology")
+
+            results = []
+            seen_contents = set()
+            for q in search_queries:
+                q_res = self.vectorstore.similarity_search_with_score(q, k=k)
+                for doc, score in q_res:
+                    if doc.page_content not in seen_contents:
+                        seen_contents.add(doc.page_content)
+                        results.append((doc, score))
             if not results:
                 print(f"[RAG] Vectorstore empty or no matches for: '{query[:30]}'")
                 return "", [], []
