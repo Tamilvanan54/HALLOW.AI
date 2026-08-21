@@ -195,38 +195,41 @@ def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     global engine
-    print("⏳ Loading Vectorstore & RAG Engine...")
-    vectorstore, pdf_vocab = build_unified_vectorstore()
+    print("⏳ Starting RAG Engine Microservice...")
 
-    model_name = os.getenv("RAG_MODEL_NAME", "qwen2.5:1.5b")
-
-    if vectorstore:
-        engine = RAGEngine(
-            vectorstore=vectorstore,
-            model_name=model_name,
-            model_kwargs={
-                "keep_alive": "24h",
-                "options": {
-                    "num_gpu": 0,
-                    "temperature": 0.0,
-                    "num_predict": 140,
-                    "num_ctx": 200,
-                    "num_thread": 4,
-                    "top_k": 5,
-                    "top_p": 0.5
-                }
-            }
-        )
-        engine.pdf_vocabulary = pdf_vocab
-        # Pre-warm: force-load model weights into RAM so first query has 0s cold-start
-        print("⏳ Pre-warming LLM model into CPU RAM...")
+    def _async_init():
+        global engine
         try:
-            _warmup = engine.llm.invoke("hi")
-            print("✅ Model pre-warmed and loaded in CPU RAM!")
-        except Exception as e:
-            print(f"⚠️ Pre-warm attempt: {e} (model will load on first query)")
-        print("✅ RAG Engine Microservice is ready!")
+            print("⏳ Loading Vectorstore & RAG Engine in background thread...")
+            vectorstore, pdf_vocab = build_unified_vectorstore()
+            model_name = os.getenv("RAG_MODEL_NAME", "qwen2.5:1.5b")
+            if vectorstore:
+                engine = RAGEngine(
+                    vectorstore=vectorstore,
+                    model_name=model_name,
+                    model_kwargs={
+                        "keep_alive": "24h",
+                        "options": {
+                            "num_gpu": 0,
+                            "temperature": 0.0,
+                            "num_predict": 140,
+                            "num_ctx": 200,
+                            "num_thread": 4,
+                            "top_k": 5,
+                            "top_p": 0.5
+                        }
+                    }
+                )
+                engine.pdf_vocabulary = pdf_vocab
+                print("✅ RAG Engine Microservice is fully ready and online!")
+        except Exception as err:
+            print(f"❌ Async RAG initialization error: {err}")
+
+    import threading
+    threading.Thread(target=_async_init, daemon=True).start()
+
     yield
+    print("👋 Shutting down RAG Engine Microservice...")
 
 app = FastAPI(title="RAG Microservice API", lifespan=lifespan)
 
