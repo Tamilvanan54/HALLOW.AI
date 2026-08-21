@@ -156,8 +156,10 @@ class RAGEngine:
                 return "", [], []
 
             is_math = self._classify_query(query)[0]
-            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "1.45"))
-            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.55"))
+            raw_env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "1.45"))
+            raw_env_math = float(os.getenv("RAG_MATH_THRESHOLD", "1.55"))
+            env_thresh = max(1.45, raw_env_thresh)
+            env_math_thresh = max(1.55, raw_env_math)
             threshold = env_math_thresh if is_math else env_thresh
 
             search_queries = [query]
