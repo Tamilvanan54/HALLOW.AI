@@ -163,7 +163,7 @@ class RAGEngine:
             for doc, score in results:
                 doc_name = doc.metadata.get("source", "study_material.pdf")
                 doc_page = doc.metadata.get("page", 1)
-                snippet = doc.page_content[:200]
+                snippet = doc.page_content[:200].replace('\n', ' ').replace('\r', '')
                 print(f"[RAG] Query: '{query[:25]}' | Doc: {doc_name} (P.{doc_page}) | Distance Score: {score:.4f}")
 
                 # Reject chunks exceeding distance threshold
