@@ -92,10 +92,14 @@ export default function Chat() {
         params: { session_id: chatId }
       });
 
-      if (response.data.status && Array.isArray(response.data.messages)) {
-        const formattedMessages = response.data.messages.map((m) => ({
+      const rawList = Array.isArray(response.data)
+        ? response.data
+        : (response.data?.messages || response.data?.data || []);
+
+      if (Array.isArray(rawList)) {
+        const formattedMessages = rawList.map((m) => ({
           sender: (m.sender && (m.sender.toLowerCase() === "user" || m.sender === "You")) ? "User" : "AI",
-          text: m.message,
+          text: m.text || m.message || "",
           streaming: false,
           status: false
         }));
