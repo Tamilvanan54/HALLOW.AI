@@ -82,8 +82,11 @@ export default function Chat() {
 
   // SELECT CHAT
   const selectChat = async (chatOrId) => {
-    const chatId = typeof chatOrId === "object" ? (chatOrId.id || chatOrId._id || chatOrId.session_id) : chatOrId;
-    if (!chatId) return;
+    let rawId = typeof chatOrId === "object" ? (chatOrId.id || chatOrId._id || chatOrId.session_id) : chatOrId;
+    if (!rawId) return;
+
+    const chatId = parseInt(rawId, 10);
+    if (isNaN(chatId)) return;
 
     setCurrentChatId(chatId);
     localStorage.setItem("activeChatId", String(chatId));
@@ -167,7 +170,8 @@ export default function Chat() {
         setIsGenerating(false);
         return;
       }
-      chatId = typeof createdChat === "object" ? (createdChat.id || createdChat._id || createdChat.session_id) : createdChat;
+      const rawNewId = typeof createdChat === "object" ? (createdChat.id || createdChat._id || createdChat.session_id) : createdChat;
+      chatId = parseInt(rawNewId, 10);
       setCurrentChatId(chatId);
       localStorage.setItem("activeChatId", String(chatId));
     }
