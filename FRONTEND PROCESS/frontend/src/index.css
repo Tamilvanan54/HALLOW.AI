@@ -377,12 +377,40 @@ body,
 
 
   .card h2 {
+    font-size: 16px;
+  }
+}
 
-
-    font-size:16px;
-
-
+/* ==========================
+   RESPONSIVE SIDEBAR & CHAT LAYOUT
+========================== */
+@media (max-width: 768px) {
+  .desktop-sidebar {
+    display: none !important;
   }
 
+  .mobile-topbar {
+    display: flex !important;
+  }
 
+  .chat-main-content {
+    margin-top: 60px !important;
+    height: calc(100vh - 60px) !important;
+    width: 100vw !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .desktop-sidebar {
+    display: flex !important;
+  }
+
+  .mobile-topbar {
+    display: none !important;
+  }
+
+  .chat-main-content {
+    margin-top: 0 !important;
+    height: 100vh !important;
+  }
 }

@@ -75,21 +75,20 @@ togglePin,
     <>
 
       {/* TOP BAR */}
-
       <div
+        className="mobile-topbar"
         style={{
-          position:"fixed",
-          top:0,
-          left:0,
-          right:0,
-          height:"60px",
-          background:"#212121",
-          color:"white",
-          display:"flex",
-          alignItems:"center",
-          padding:"0 20px",
-          borderBottom:"1px solid #2f2f2f",
-          zIndex:1000,
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "60px",
+          background: "#212121",
+          color: "white",
+          alignItems: "center",
+          padding: "0 20px",
+          borderBottom: "1px solid #2f2f2f",
+          zIndex: 1000,
         }}
       >
 

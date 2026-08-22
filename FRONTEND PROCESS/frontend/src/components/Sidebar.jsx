@@ -28,6 +28,7 @@ export default function Sidebar({
 
   return (
     <div
+      className="desktop-sidebar"
       style={{
         width: "260px",
         height: "100vh",
@@ -37,7 +38,8 @@ export default function Sidebar({
         flexDirection: "column",
         padding: "15px",
         borderRight: "1px solid #2f2f2f",
-        boxSizing: "border-box"
+        boxSizing: "border-box",
+        flexShrink: 0
       }}
     >
       {/* LOGO */}

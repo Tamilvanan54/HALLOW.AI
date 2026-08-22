@@ -420,7 +420,7 @@ export default function Chat() {
         currentChatId={currentChatId}
       />
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#212121", position: "relative" }}>
+      <div className="chat-main-content" style={{ flex: 1, display: "flex", flexDirection: "column", background: "#212121", position: "relative" }}>
         <div ref={chatContainerRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
           <ChatWindow messages={messages} userMessageRefs={userMessageRefs} />
         </div>
