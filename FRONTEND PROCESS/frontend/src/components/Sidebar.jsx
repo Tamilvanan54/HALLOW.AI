@@ -140,182 +140,150 @@ export default function Sidebar({
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
-                    maxWidth: "170px"
+                    maxWidth: "145px"
                   }}
                 >
                   💬 {chat.title}
                 </span>
 
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (deleteChat) deleteChat(chatId);
-                  }}
-                  style={{
-                    cursor: "pointer",
-                    color: "#ef4444",
-                    fontSize: "14px",
-                    padding: "2px 6px"
-                  }}
-                  title="Delete chat"
-                >
-                  🗑
-                </span>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (togglePin) togglePin(chatId);
+                    }}
+                    style={{
+                      cursor: "pointer",
+                      color: chat.pinned ? "#e5e7eb" : "#6b7280",
+                      fontSize: "14px"
+                    }}
+                    title={chat.pinned ? "Unpin chat" : "Pin chat"}
+                  >
+                    📎
+                  </span>
+
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (deleteChat) deleteChat(chatId);
+                    }}
+                    style={{
+                      cursor: "pointer",
+                      color: "#ef4444",
+                      fontSize: "14px"
+                    }}
+                    title="Delete chat"
+                  >
+                    🗑
+                  </span>
+                </div>
               </div>
             );
           })
         )}
       </div>
 
-
-
-
       {/* MENU */}
-
       <div
         style={{
-          display:"flex",
-          flexDirection:"column",
-          gap:"18px",
-          marginTop:"15px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "18px",
+          marginTop: "15px",
         }}
       >
-
-
-
         <div
           onClick={() => navigate("/chat")}
-          style={{cursor:"pointer"}}
+          style={{ cursor: "pointer" }}
         >
           💬 Chat
         </div>
 
-
-
-
         <div
           onClick={() => navigate("/library")}
-          style={{cursor:"pointer"}}
+          style={{ cursor: "pointer" }}
         >
           📄 Library
         </div>
 
-
-
-
-
-        {
-          isAdmin && (
-
-            <>
-              <div
-                onClick={() => navigate("/users")}
-                style={{cursor:"pointer"}}
-              >
-                👥 Users
-              </div>
-
-
-              <div
-                onClick={() => navigate("/logs")}
-                style={{cursor:"pointer"}}
-              >
-                📊 Logs
-              </div>
-
-            </>
-
-          )
-        }
-
-
-
-
-
-        {
-          (isAdmin || isStaff) && (
-
+        {isAdmin && (
+          <>
             <div
-              onClick={() => navigate("/feedback-review")}
-              style={{
-                cursor:"pointer",
-              }}
+              onClick={() => navigate("/users")}
+              style={{ cursor: "pointer" }}
             >
-              📢 Feedback Review
+              👥 Users
             </div>
 
-          )
-        }
+            <div
+              onClick={() => navigate("/logs")}
+              style={{ cursor: "pointer" }}
+            >
+              📊 Logs
+            </div>
+          </>
+        )}
 
-
-
-
+        {(isAdmin || isStaff) && (
+          <div
+            onClick={() => navigate("/feedback-review")}
+            style={{ cursor: "pointer" }}
+          >
+            📢 Feedback Review
+          </div>
+        )}
 
         <div
           onClick={() => navigate("/profile")}
-          style={{
-            cursor:"pointer",
-          }}
+          style={{ cursor: "pointer" }}
         >
           👤 Profile
         </div>
-
-
-
       </div>
 
-
-
-
-
-
       {/* USER INFO */}
-
       <div
         style={{
-          borderTop:"1px solid #404040",
-          marginTop:"15px",
-          paddingTop:"15px",
-          textAlign:"center",
+          borderTop: "1px solid #404040",
+          marginTop: "15px",
+          paddingTop: "15px",
+          textAlign: "center",
         }}
       >
-
-
-        <p>
+        <p style={{ margin: "0 0 4px 0", fontSize: "14px" }}>
           👤 {email}
         </p>
 
-
         <p
           style={{
-            color:"#9ca3af",
+            color: "#9ca3af",
+            margin: "0 0 10px 0",
+            fontSize: "12px"
           }}
         >
           {role}
         </p>
 
-
-
         <button
           onClick={logout}
           style={{
-            width:"100%",
-            padding:"10px",
-            background:"#2f2f2f",
-            color:"white",
-            border:"none",
-            borderRadius:"8px",
-            cursor:"pointer",
+            width: "100%",
+            padding: "10px",
+            background: "#2f2f2f",
+            color: "white",
+            border: "1px solid #404040",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontWeight: "500",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px"
           }}
         >
-          ⇥ Logout
+          → Logout
         </button>
-
-
       </div>
-
-
-
     </div>
 
   );
