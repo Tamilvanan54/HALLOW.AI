@@ -161,11 +161,12 @@ export default function Chat() {
 
     if (!chatId) {
       const title = currentMessage.slice(0, 30);
-      chatId = await addChat(title);
-      if (!chatId) {
+      const createdChat = await addChat(title);
+      if (!createdChat) {
         setIsGenerating(false);
         return;
       }
+      chatId = typeof createdChat === "object" ? (createdChat.id || createdChat._id || createdChat.session_id) : createdChat;
       setCurrentChatId(chatId);
       localStorage.setItem("activeChatId", String(chatId));
     }
