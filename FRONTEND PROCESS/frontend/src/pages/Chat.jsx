@@ -3,6 +3,7 @@ import axios from "axios";
 import { API_BASE_URL, RAG_BASE_URL } from "../config/api";
 
 import MobileSidebar from "../components/MobileSidebar";
+import Sidebar from "../components/Sidebar";
 import ChatWindow from "../components/ChatWindow";
 import ChatInput from "../components/ChatInput";
 
@@ -396,6 +397,15 @@ export default function Chat() {
 
   return (
     <div style={{ display: "flex", height: "100vh", width: "100vw", background: "#212121", overflow: "hidden" }}>
+      <Sidebar
+        chatHistory={chatHistory}
+        startNewChat={startNewChat}
+        selectChat={selectChat}
+        openChat={selectChat}
+        deleteChat={handleDeleteChat}
+        togglePin={togglePin}
+        currentChatId={currentChatId}
+      />
       <MobileSidebar
         chatHistory={chatHistory}
         startNewChat={startNewChat}
