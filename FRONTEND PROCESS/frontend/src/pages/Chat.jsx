@@ -37,18 +37,37 @@ export default function Chat() {
     localStorage.removeItem("activeChatId");
   }, []);
 
-  // AUTO SCROLL
+  const userMessageRefs = useRef({});
+
+  // AUTO SCROLL - Align scroll to the START of the current user question / response block
   useEffect(() => {
-    if (chatContainerRef.current) {
+    if (!messages || !messages.length) return;
+
+    // Find index of the most recent User question
+    let lastUserIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i] && messages[i].sender === "User") {
+        lastUserIndex = i;
+        break;
+      }
+    }
+
+    if (lastUserIndex !== -1 && userMessageRefs.current[lastUserIndex]) {
+      userMessageRefs.current[lastUserIndex].scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    } else if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages.length, messages[messages.length - 1]?.text]);
 
   // NEW CHAT
   const startNewChat = () => {
     setMessages([]);
     setCurrentChatId(null);
     setMessage("");
+    userMessageRefs.current = {};
     localStorage.removeItem("activeChatId");
   };
 
@@ -61,7 +80,10 @@ export default function Chat() {
   };
 
   // SELECT CHAT
-  const selectChat = async (chatId) => {
+  const selectChat = async (chatOrId) => {
+    const chatId = typeof chatOrId === "object" ? (chatOrId.id || chatOrId._id || chatOrId.session_id) : chatOrId;
+    if (!chatId) return;
+
     setCurrentChatId(chatId);
     localStorage.setItem("activeChatId", String(chatId));
 
@@ -72,7 +94,7 @@ export default function Chat() {
 
       if (response.data.status && Array.isArray(response.data.messages)) {
         const formattedMessages = response.data.messages.map((m) => ({
-          sender: m.sender === "user" ? "User" : "AI",
+          sender: (m.sender && (m.sender.toLowerCase() === "user" || m.sender === "You")) ? "User" : "AI",
           text: m.message,
           streaming: false,
           status: false
@@ -373,6 +395,7 @@ export default function Chat() {
         chatHistory={chatHistory}
         startNewChat={startNewChat}
         selectChat={selectChat}
+        openChat={selectChat}
         deleteChat={handleDeleteChat}
         togglePin={togglePin}
         currentChatId={currentChatId}
@@ -380,7 +403,7 @@ export default function Chat() {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#212121", position: "relative" }}>
         <div ref={chatContainerRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-          <ChatWindow messages={messages} />
+          <ChatWindow messages={messages} userMessageRefs={userMessageRefs} />
         </div>
 
         <div style={{ padding: "15px 20px", background: "#212121" }}>

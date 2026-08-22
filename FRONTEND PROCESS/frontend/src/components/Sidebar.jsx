@@ -149,9 +149,10 @@ export default function Sidebar({
             >
 
               <span
-                onClick={() =>
-                  openChat && openChat(chat)
-                }
+                onClick={() => {
+                  const handleSelect = selectChat || openChat;
+                  if (handleSelect) handleSelect(chat.id || chat._id || chat);
+                }}
                 style={{
                   cursor:"pointer",
                 }}

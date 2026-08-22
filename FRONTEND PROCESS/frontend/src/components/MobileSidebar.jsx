@@ -269,11 +269,9 @@ togglePin,
 
       <div
         onClick={() => {
-
-          openChat(chat);
-
+          const handleSelect = selectChat || openChat;
+          if (handleSelect) handleSelect(chat.id || chat._id || chat);
           setIsOpen(false);
-
         }}
         style={{
           cursor:"pointer",

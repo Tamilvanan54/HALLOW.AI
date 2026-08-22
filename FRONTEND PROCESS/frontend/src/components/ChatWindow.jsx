@@ -45,7 +45,7 @@ const formatMathText = (text) => {
   return formatted.trim();
 };
 
-export default function ChatWindow({ messages }) {
+export default function ChatWindow({ messages, userMessageRefs }) {
   const [openMenu, setOpenMenu] = useState(null);
   const [copied, setCopied] = useState(false);
   const [feedbackSaved, setFeedbackSaved] = useState(false);
@@ -149,6 +149,11 @@ export default function ChatWindow({ messages }) {
       {messages.map((msg, index) => (
         <div
           key={index}
+          ref={(el) => {
+            if (userMessageRefs && userMessageRefs.current) {
+              userMessageRefs.current[index] = el;
+            }
+          }}
           style={{
             marginBottom: "25px",
             display: "flex",
