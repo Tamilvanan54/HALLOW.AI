@@ -156,10 +156,8 @@ class RAGEngine:
                 return "", [], []
 
             is_math = self._classify_query(query)[0]
-            raw_env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "1.80"))
-            raw_env_math = float(os.getenv("RAG_MATH_THRESHOLD", "1.85"))
-            env_thresh = max(1.80, raw_env_thresh)
-            env_math_thresh = max(1.85, raw_env_math)
+            env_thresh = float(os.getenv("RAG_RELEVANCE_THRESHOLD", "0.92"))
+            env_math_thresh = float(os.getenv("RAG_MATH_THRESHOLD", "1.10"))
             threshold = env_math_thresh if is_math else env_thresh
 
             search_queries = [query]
@@ -187,7 +185,7 @@ class RAGEngine:
                 snippet = doc.page_content[:200].replace('\n', ' ').replace('\r', '')
                 print(f"[RAG] Query: '{query[:25]}' | Doc: {doc_name} (P.{doc_page}) | Distance Score: {score:.4f}")
 
-                # Reject chunks exceeding distance threshold
+                # Strictly reject chunks exceeding distance threshold
                 if score < threshold:
                     valid_docs.append(doc)
                     sources_metadata.append({
@@ -212,6 +210,8 @@ class RAGEngine:
     def _build_prompt(self, query: str, context_text: str) -> str:
         is_math, is_big, is_diagram = self._classify_query(query)
 
+        strict_guardrail = "STRICT RULE: Answer using ONLY facts explicitly mentioned in Context. Do NOT use outside or general knowledge."
+
         if is_diagram:
             return f"""Context:
 {context_text}
@@ -219,8 +219,9 @@ class RAGEngine:
 Question: {query}
 
 Instructions:
-1. Draw an ASCII diagram inside a code block, then explain briefly using ONLY Context.
-2. Leave a blank line, then write "### Example" followed by an example from Context.
+1. {strict_guardrail}
+2. Draw an ASCII diagram inside a code block, then explain briefly using ONLY Context.
+3. Leave a blank line, then write "### Example" followed by an example from Context.
 
 Answer:"""
 
@@ -231,7 +232,8 @@ Answer:"""
 Question: {query}
 
 Instructions:
-1. Solve step-by-step using ONLY the Context formulas:
+1. {strict_guardrail}
+2. Solve step-by-step using ONLY the Context formulas:
 ### Step 1
 ...
 
@@ -241,7 +243,7 @@ Instructions:
 ### Final Answer
 ...
 
-2. Leave a blank line, then write:
+3. Leave a blank line, then write:
 ### Example
 [Short verification example]
 
@@ -256,8 +258,9 @@ Solution:"""
 Question: {query}
 
 Instructions:
-1. Provide a detailed 16-mark answer (Definition, Key Points, Process) using ONLY Context.
-2. Leave a blank line, then write "### Example" followed by an example.
+1. {strict_guardrail}
+2. Provide a detailed answer (Definition, Key Points, Process) using ONLY Context.
+3. Leave a blank line, then write "### Example" followed by an example from Context.
 
 Answer:"""
 
@@ -267,8 +270,9 @@ Answer:"""
 Question: {query}
 
 Instructions:
-1. Provide 4-6 lines of clear explanation based ONLY on the Context.
-2. Leave a blank line, then write "### Example" followed by a practical example from Context.
+1. {strict_guardrail}
+2. Provide 4-6 lines of clear explanation based ONLY on the Context.
+3. Leave a blank line, then write "### Example" followed by a practical example from Context.
 
 Answer:"""
 
