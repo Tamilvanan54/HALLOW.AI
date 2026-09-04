@@ -175,7 +175,26 @@ class RAGEngine:
                     print(f"⚠️ Vector search error for query '{q}': {search_err}")
 
             if not results:
-                print(f"[RAG] Vectorstore empty or no matches for: '{query[:30]}'")
+                print(f"[RAG] Vector search returned 0 matches for: '{query[:30]}'. Trying direct PDF document scan...")
+                try:
+                    import sys
+                    rag_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+                    if rag_dir not in sys.path:
+                        sys.path.insert(0, rag_dir)
+                    from main import load_all_pdfs
+                    all_chunks, _ = load_all_pdfs()
+                    query_terms = [t for t in query.lower().split() if len(t) > 2]
+                    for chunk in all_chunks:
+                        c_low = chunk.page_content.lower()
+                        if any(term in c_low for term in query_terms):
+                            if chunk.page_content not in seen_contents:
+                                seen_contents.add(chunk.page_content)
+                                results.append(chunk)
+                except Exception as fb_err:
+                    print(f"⚠️ Direct PDF fallback note: {fb_err}")
+
+            if not results:
+                print(f"[RAG] No document chunks found for: '{query[:30]}'")
                 return "", [], []
 
             valid_docs = results[:k]
