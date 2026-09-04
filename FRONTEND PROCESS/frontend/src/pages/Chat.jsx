@@ -227,7 +227,7 @@ export default function Chat() {
       if (!response.ok) {
         console.error(`RAG API returned status ${response.status}`);
         updateCurrentAiMessage({
-          text: "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.",
+          text: `Service error (${response.status}). Please verify RAG service status.`,
           streaming: false,
           status: false,
           confidence: "refused"
@@ -253,7 +253,7 @@ export default function Chat() {
         if (dataStr.startsWith("<") || dataStr.includes("<html>") || dataStr.includes("502 Bad Gateway")) {
           console.warn("Received HTML error page from server:", dataStr);
           updateCurrentAiMessage({
-            text: "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.",
+            text: "Server gateway error. Please verify RAG service connection.",
             streaming: false,
             status: false,
             confidence: "refused"
