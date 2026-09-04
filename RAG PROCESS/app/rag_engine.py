@@ -269,14 +269,9 @@ class RAGEngine:
     def _build_prompt(self, query: str, context_text: str) -> str:
         is_math, is_big, is_diagram = self._classify_query(query)
 
-        strict_guardrail = """CRITICAL MANDATORY INSTRUCTION:
-You are a strict document QA assistant. Answer the user's question ONLY and EXCLUSIVELY using the factual information provided in the Context below.
-
-STRICT RULES:
-1. If the Context does NOT contain enough relevant information to directly answer the question, or if the question asks about a topic not mentioned in the Context, you MUST respond with EXACTLY:
-I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.
-2. Do NOT use any outside knowledge, general world knowledge, or attempt to guess/invent an answer.
-3. If the answer IS in the Context, explain it accurately based ONLY on the Context."""
+        strict_guardrail = """Answer the user's question accurately based ONLY on the provided Context below.
+- Rely ONLY on facts explicitly stated in the Context. Do NOT use outside knowledge.
+- Keep the explanation clear, accurate, and structured."""
 
         if is_diagram:
             return f"""Context:
