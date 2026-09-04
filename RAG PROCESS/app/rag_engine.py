@@ -204,17 +204,14 @@ class RAGEngine:
                             c_low = doc.page_content.lower()
 
                             # Keyword check if key terms exist
-                            has_keyword_match = True
+                            has_keyword_match = False
                             if query_key_terms:
                                 has_keyword_match = any(t in c_low for t in query_key_terms)
 
-                            # If no keyword match, require strong vector similarity (score <= 1.25)
-                            # If keyword match exists, allow score up to 1.60
-                            if not has_keyword_match and score > 1.25:
-                                print(f"[RAG] Skipping weak chunk (score={score:.3f}, no keyword match): '{doc.page_content[:50]}...'")
-                                continue
-                            if score > 1.60:
-                                print(f"[RAG] Skipping irrelevantly distant chunk (score={score:.3f}): '{doc.page_content[:50]}...'")
+                            # Rule 1: If chunk contains key topic terms from the question, ALWAYS KEEP IT!
+                            # Rule 2: If chunk does NOT contain key terms, only keep if vector similarity is very close (score <= 1.20)
+                            if not has_keyword_match and score > 1.20:
+                                print(f"[RAG] Skipping out-of-domain chunk (score={score:.3f}, no keyword match): '{doc.page_content[:50]}...'")
                                 continue
 
                             seen_contents.add(doc.page_content)
