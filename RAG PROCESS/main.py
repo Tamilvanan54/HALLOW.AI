@@ -179,7 +179,7 @@ def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
         print(f"⚠️ Fast HuggingFaceEmbeddings unavailable ({e}). Falling back to OllamaEmbeddings...")
         embeddings = OllamaEmbeddings(model="qwen2.5:1.5b")
 
-    docs, pdf_vocab = load_all_pdfs()
+    docs, pdf_vocab = load_all_pdfs(force_reload=True)
 
     vectorstore = Chroma(
         persist_directory=CHROMA_PERSIST_DIR,
@@ -187,24 +187,36 @@ def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
     )
 
     try:
-        chunk_count = vectorstore._collection.count()
-        if chunk_count > 0:
-            print(f"✅ Vector database loaded existing {chunk_count} document chunks instantly.")
-            return vectorstore, pdf_vocab
-    except Exception as check_err:
-        print(f"⚠️ Vectorstore count note: {check_err}")
+        col = vectorstore._collection
+        existing_data = col.get(include=["metadatas"])
+        indexed_sources = set()
+        if existing_data and "metadatas" in existing_data and existing_data["metadatas"]:
+            for meta in existing_data["metadatas"]:
+                if meta and "source" in meta:
+                    indexed_sources.add(meta["source"])
 
-    if docs:
-        batch_size = 100
-        total_docs = len(docs)
-        print(f"⏳ Embedding {total_docs} document chunks into Chroma...")
-        for i in range(0, total_docs, batch_size):
-            batch = docs[i : i + batch_size]
-            try:
-                vectorstore.add_documents(documents=batch)
-                print(f"   ✓ Indexed chunks {i + 1} to {min(i + batch_size, total_docs)} / {total_docs}")
-            except Exception as batch_err:
-                print(f"   ❌ Batch embedding note: {batch_err}")
+        disk_sources = {doc.metadata.get("source") for doc in docs if doc.metadata.get("source")}
+        missing_docs = [doc for doc in docs if doc.metadata.get("source") not in indexed_sources]
+
+        if not missing_docs and col.count() > 0:
+            print(f"✅ Vector database up-to-date with {col.count()} chunks from {len(indexed_sources)} PDFs: {list(indexed_sources)}")
+            return vectorstore, pdf_vocab
+
+        if missing_docs:
+            missing_sources = {doc.metadata.get("source") for doc in missing_docs}
+            print(f"⏳ Syncing vectorstore: Embedding {len(missing_docs)} chunks from missing PDFs: {list(missing_sources)}...")
+            batch_size = 100
+            total_missing = len(missing_docs)
+            for i in range(0, total_missing, batch_size):
+                batch = missing_docs[i : i + batch_size]
+                try:
+                    vectorstore.add_documents(documents=batch)
+                    print(f"   ✓ Indexed chunks {i + 1} to {min(i + batch_size, total_missing)} / {total_missing}")
+                except Exception as batch_err:
+                    print(f"   ❌ Batch embedding note: {batch_err}")
+
+    except Exception as check_err:
+        print(f"⚠️ Vectorstore sync note: {check_err}")
 
     try:
         chunk_count = vectorstore._collection.count()
