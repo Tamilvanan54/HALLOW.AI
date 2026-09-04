@@ -413,5 +413,5 @@ Answer:"""
 
         except Exception as err:
             print(f"⚠️ Streaming error: {err}")
-            # Fallback refusal on stream exception
-            yield f'event: final\ndata: {{"answer": {json.dumps(EXACT_REFUSAL_MESSAGE)}, "sources": [], "confidence": "refused", "refusal_reason": "llm_error", "corrected_query": null, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
+            err_msg = f"LLM Generation Note: {str(err)}. Please verify Ollama model availability."
+            yield f'event: final\ndata: {{"answer": {json.dumps(err_msg)}, "sources": [], "confidence": "error", "refusal_reason": "llm_error", "corrected_query": null, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
