@@ -95,12 +95,14 @@ def extract_pdf_documents(pdf_path: str) -> list[Document]:
 
 def load_all_pdfs() -> tuple[list[Document], set[str]]:
     """Find and chunk all PDFs inside ./data and uploads folders."""
+    base_dir = os.path.abspath(os.path.dirname(__file__))
     search_dirs = [
-        "./data",
-        "../data",
-        "./uploads",
-        "../uploads",
-        "../BACKEND PROCESS/uploads",
+        os.path.join(base_dir, "data"),
+        os.path.join(base_dir, "uploads"),
+        os.path.join(base_dir, "..", "uploads"),
+        os.path.join(base_dir, "..", "data"),
+        os.path.join(base_dir, "..", "BACKEND PROCESS", "uploads"),
+        os.path.join(base_dir, "..", "BACKEND PROCESS", "data"),
         "/root/HALLOW.AI/data",
         "/root/HALLOW.AI/uploads",
         "/root/HALLOW.AI/BACKEND PROCESS/uploads",

@@ -12,6 +12,16 @@ from app.history import resolve_history_reference
 EXACT_REFUSAL_MESSAGE = "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question."
 NO_EXAMPLE_FALLBACK = "### Example\nThe uploaded documents do not provide a specific example for this concept."
 
+def get_installed_ollama_models() -> list[str]:
+    try:
+        res = requests.get("http://127.0.0.1:11434/api/tags", timeout=1.5)
+        if res.status_code == 200:
+            models = [m.get("name") for m in res.json().get("models", []) if m.get("name")]
+            return models
+    except Exception:
+        pass
+    return []
+
 class RAGEngine:
 
     def __init__(
@@ -45,6 +55,12 @@ class RAGEngine:
             self.default_kwargs.update(model_kwargs)
             self.default_kwargs["options"] = self.options
 
+        # Initialize with installed model verification
+        installed = get_installed_ollama_models()
+        if installed and not any(model_name.lower() in m.lower() for m in installed):
+            self.model_name = installed[0]
+            print(f"[RAG] Default model '{model_name}' not in installed tags {installed}. Using '{self.model_name}'.")
+
         self.llm = ChatOllama(
             model=self.model_name,
             **self.default_kwargs
@@ -54,13 +70,25 @@ class RAGEngine:
         if not model_name:
             return
 
-        if hasattr(self, "llm") and self.llm:
-            current_lower = self.model_name.lower()
-            target_lower = model_name.lower()
-            if ("qwen" in target_lower and "qwen" in current_lower) or ("llama" in target_lower and "llama" in current_lower):
-                return
+        installed = get_installed_ollama_models()
+        target_model = model_name
 
-        print(f"[RAG] Requesting model switch to '{model_name}'")
+        if installed:
+            req_lower = model_name.lower()
+            matching = [m for m in installed if req_lower in m.lower() or m.lower() in req_lower]
+            if matching:
+                target_model = matching[0]
+            else:
+                target_model = installed[0]
+                print(f"[RAG] Requested model '{model_name}' not downloaded in Ollama. Using available model '{target_model}'.")
+        else:
+            if "llama" in model_name.lower():
+                target_model = "qwen2.5:1.5b"
+
+        if hasattr(self, "llm") and self.llm and getattr(self, "model_name", "").lower() == target_model.lower():
+            return
+
+        print(f"[RAG] Binding LLM model: '{target_model}'")
         fast_options = dict(self.options)
         fast_options["num_ctx"] = 2048
         fast_options["num_predict"] = 512
@@ -73,25 +101,9 @@ class RAGEngine:
         fast_kwargs["options"] = fast_options
         fast_kwargs["keep_alive"] = "24h"
 
-        candidate_models = ["qwen2.5:1.5b", "qwen2.5:0.5b", model_name]
-        if "qwen" in model_name.lower():
-            candidate_models.extend(["qwen2.5:1.5b", "qwen2.5:0.5b", "qwen2.5:latest", "qwen2.5:3b"])
-        elif "llama" in model_name.lower():
-            candidate_models.extend(["llama3.2:1b", "llama3.2:3b", "llama3.2:latest"])
-
-        for candidate in candidate_models:
-            try:
-                print(f"[RAG] Initializing LLM candidate: '{candidate}'")
-                llm_instance = ChatOllama(model=candidate, **fast_kwargs)
-                self.llm = llm_instance
-                self.model_name = candidate
-                print(f"✅ [RAG] Successfully bound LLM model: '{candidate}'")
-                return
-            except Exception as err:
-                print(f"⚠️ candidate '{candidate}' failed: {err}")
-
-        self.model_name = model_name
-        self.llm = ChatOllama(model=model_name, **fast_kwargs)
+        self.model_name = target_model
+        self.llm = ChatOllama(model=target_model, **fast_kwargs)
+        print(f"✅ [RAG] Successfully bound LLM model: '{target_model}'")
 
     def _check_feedback_correction(self, query_text: str) -> str | None:
         """Check if Admin/Staff reviewed & corrected answer in feedback section."""
@@ -415,6 +427,21 @@ Answer:"""
             yield f'event: final\ndata: {{"answer": {json.dumps(full_output)}, "sources": {json.dumps(sources_metadata)}, "confidence": "grounded", "refusal_reason": null, "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"normalization": {t_norm}, "typo_correction": {t_spell}, "retrieval": {t_ret}, "llm_first_token": {t_llm_first or 0}, "total": {t_total}}}}}\n\n'
 
         except Exception as err:
-            print(f"⚠️ Streaming error: {err}")
-            err_msg = f"LLM Generation Note: {str(err)}. Please verify Ollama model availability."
-            yield f'event: final\ndata: {{"answer": {json.dumps(err_msg)}, "sources": [], "confidence": "error", "refusal_reason": "llm_error", "corrected_query": null, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
+            print(f"⚠️ Streaming error with '{self.model_name}': {err}. Attempting fallback model stream...")
+            try:
+                fallback_model = "qwen2.5:1.5b"
+                fallback_llm = ChatOllama(model=fallback_model, **self.default_kwargs)
+                full_output = ""
+                for chunk in fallback_llm.stream(formatted_prompt):
+                    token = chunk.content if hasattr(chunk, "content") else str(chunk)
+                    if token:
+                        full_output += token
+                        yield f'event: token\ndata: {{"token": {json.dumps(token)}}}\n\n'
+
+                full_output = self._ensure_example_section(full_output, context_text)
+                yield f'event: final\ndata: {{"answer": {json.dumps(full_output)}, "sources": {json.dumps(sources_metadata)}, "confidence": "grounded", "refusal_reason": null, "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
+            except Exception as fb_err:
+                print(f"❌ Fallback streaming error: {fb_err}")
+                err_msg = EXACT_REFUSAL_MESSAGE
+                yield f'event: token\ndata: {{"token": {json.dumps(err_msg)}}}\n\n'
+                yield f'event: final\ndata: {{"answer": {json.dumps(err_msg)}, "sources": [], "confidence": "error", "refusal_reason": "llm_error", "corrected_query": null, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
