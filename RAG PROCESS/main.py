@@ -392,9 +392,10 @@ def handle_query(request: QueryRequest):
 @app.post("/api/query/sse")
 def handle_query_stream(request: QueryRequest):
     """SSE streaming endpoint returning status, meta, tokens, and final response metadata."""
+    global engine
     if not engine:
-        print("⏳ Lazily initializing RAG engine on query request...")
-        reload_vectorstore()
+        print("⚡ Creating instant lightweight RAG engine for stream request...")
+        engine = RAGEngine(vectorstore=None, model_name=os.getenv("RAG_MODEL_NAME", "qwen2.5:1.5b"))
 
     if request.model_name and engine:
         engine.set_model(request.model_name)
