@@ -381,10 +381,13 @@ Answer:"""
 
         t_ret = round((time.time() - t_ret_start) * 1000, 2)
 
-        # If vectorstore search returned empty, fall back to direct study context prompt so user ALWAYS receives a clean answer
+        # Step 7: Strict PDF context check
         if not docs or not context_text or not context_text.strip():
-            print(f"[RAG] Vectorstore context sparse for '{query_text}'. Generating direct study response...")
-            context_text = f"Study Material Query: {corrected_query}"
+            print(f"[RAG] Question not present in uploaded study materials: '{query_text}'. Returning exact refusal message.")
+            refusal_text = EXACT_REFUSAL_MESSAGE
+            yield f'event: token\ndata: {{"token": {json.dumps(refusal_text)}}}\n\n'
+            yield f'event: final\ndata: {{"answer": {json.dumps(refusal_text)}, "sources": [], "confidence": "refused", "refusal_reason": "not_in_study_materials", "corrected_query": null, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
+            return
 
         # Send preliminary sources metadata
         yield f'event: meta\ndata: {{"sources": {json.dumps(sources_metadata)}, "corrected_query": {json.dumps(corrected_query if display_note else None)}}}\n\n'
