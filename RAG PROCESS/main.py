@@ -165,23 +165,6 @@ def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
         print(f"⚠️ Fast HuggingFaceEmbeddings unavailable ({e}). Falling back to OllamaEmbeddings...")
         embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
-    # Fast startup: If persistent database already exists and contains documents, load it immediately
-    if os.path.exists(CHROMA_PERSIST_DIR) and os.path.isdir(CHROMA_PERSIST_DIR) and len(os.listdir(CHROMA_PERSIST_DIR)) > 0:
-        print("⚡ Loading existing persistent Chroma vector database...")
-        try:
-            vectorstore = Chroma(
-                persist_directory=CHROMA_PERSIST_DIR,
-                embedding_function=embeddings,
-            )
-            doc_count = vectorstore._collection.count()
-            print(f"📊 Vectorstore contains {doc_count} document chunks.")
-            if doc_count > 0:
-                print("✅ Vector database loaded successfully!")
-                return vectorstore, set()
-            print("⚠️ Persistent Chroma database is empty (0 chunks). Triggering full fresh indexing...")
-        except Exception as err:
-            print(f"⚠️ Warning checking vector database: {err}. Rebuilding...")
-
     docs, pdf_vocab = load_all_pdfs()
 
     vectorstore = Chroma(
@@ -189,27 +172,30 @@ def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
         embedding_function=embeddings,
     )
 
-    if not docs:
-        print("ℹ️ No PDF documents found. RAG Engine initialized with empty knowledge base.")
-        return vectorstore, set()
+    # Safely refresh collection without file lock errors
+    try:
+        col = vectorstore._collection
+        existing_data = col.get()
+        if existing_data and "ids" in existing_data and len(existing_data["ids"]) > 0:
+            col.delete(ids=existing_data["ids"])
+            print(f"🧹 Cleared {len(existing_data['ids'])} stale chunks from vectorstore.")
+    except Exception as clear_err:
+        print(f"⚠️ Vectorstore refresh note: {clear_err}")
 
-    batch_size = 100
-    total_docs = len(docs)
+    if docs:
+        batch_size = 100
+        total_docs = len(docs)
+        print(f"⏳ Embedding {total_docs} document chunks into Chroma...")
+        for i in range(0, total_docs, batch_size):
+            batch = docs[i : i + batch_size]
+            try:
+                vectorstore.add_documents(documents=batch)
+                print(f"   ✓ Indexed chunks {i + 1} to {min(i + batch_size, total_docs)} / {total_docs}")
+            except Exception as batch_err:
+                print(f"   ❌ Batch embedding note: {batch_err}")
 
-    print(f"⏳ Embedding {total_docs} chunks into Chroma...")
-    for i in range(0, total_docs, batch_size):
-        batch = docs[i : i + batch_size]
-        try:
-            vectorstore.add_documents(documents=batch)
-            print(
-                f"   ✓ Indexed chunks {i + 1} to {min(i + batch_size, total_docs)} / {total_docs}"
-            )
-        except Exception as err:
-            print(f"   ⚠️ Warning on batch {i}: {err}. Retrying in 2 seconds...")
-            time.sleep(2)
-            vectorstore.add_documents(documents=batch)
-
-    print("✅ Vector database initialized and persisted successfully!")
+    chunk_count = vectorstore._collection.count()
+    print(f"✅ Vector database loaded successfully with {chunk_count} document chunks!")
     return vectorstore, pdf_vocab
 
 @asynccontextmanager
