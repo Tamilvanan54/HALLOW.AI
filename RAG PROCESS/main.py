@@ -93,8 +93,15 @@ def extract_pdf_documents(pdf_path: str) -> list[Document]:
         print(f"⚠️ Error extracting PDF text from {pdf_path}: {e}")
     return documents
 
-def load_all_pdfs() -> tuple[list[Document], set[str]]:
-    """Find and chunk all PDFs inside ./data and uploads folders."""
+GLOBAL_SPLIT_DOCS: list[Document] = []
+GLOBAL_PDF_VOCAB: set[str] = set()
+
+def load_all_pdfs(force_reload: bool = False) -> tuple[list[Document], set[str]]:
+    """Find and chunk all PDFs inside ./data and uploads folders with in-memory caching."""
+    global GLOBAL_SPLIT_DOCS, GLOBAL_PDF_VOCAB
+    if GLOBAL_SPLIT_DOCS and not force_reload:
+        return GLOBAL_SPLIT_DOCS, GLOBAL_PDF_VOCAB
+
     base_dir = os.path.abspath(os.path.dirname(__file__))
     search_dirs = [
         os.path.join(base_dir, "data"),
@@ -120,6 +127,8 @@ def load_all_pdfs() -> tuple[list[Document], set[str]]:
 
     if not pdf_files:
         print("❌ No PDF files found in search directories!")
+        GLOBAL_SPLIT_DOCS = []
+        GLOBAL_PDF_VOCAB = set()
         return [], set()
 
     print(f"📄 Found {len(pdf_files)} PDF documents: {[os.path.basename(f) for f in pdf_files]}")
@@ -147,6 +156,9 @@ def load_all_pdfs() -> tuple[list[Document], set[str]]:
 
     pdf_vocab = extract_pdf_vocabulary(raw_page_docs)
     print(f"   ✂️ Split documents into {len(split_docs)} balanced chunks. Vocabulary size: {len(pdf_vocab)} terms.")
+
+    GLOBAL_SPLIT_DOCS = split_docs
+    GLOBAL_PDF_VOCAB = pdf_vocab
     return split_docs, pdf_vocab
 
 def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
@@ -280,7 +292,7 @@ def reload_vectorstore():
     except Exception:
         embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
-    docs, pdf_vocab = load_all_pdfs()
+    docs, pdf_vocab = load_all_pdfs(force_reload=True)
 
     vectorstore = Chroma(
         persist_directory=CHROMA_PERSIST_DIR,

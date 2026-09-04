@@ -163,10 +163,6 @@ class RAGEngine:
         Returns: (context_text, valid_docs, raw_sources_metadata)
         """
         try:
-            if not self.vectorstore:
-                print("[RAG] Vectorstore is not initialized.")
-                return "", [], []
-
             is_math = self._classify_query(query)[0]
             search_queries = [query]
             q_low = query.lower()
@@ -175,16 +171,16 @@ class RAGEngine:
 
             results = []
             seen_contents = set()
-            for q in search_queries:
-                try:
-                    # Fail-proof similarity search compatible across all LangChain/Chroma versions
-                    q_docs = self.vectorstore.similarity_search(q, k=k)
-                    for doc in q_docs:
-                        if doc.page_content and doc.page_content not in seen_contents:
-                            seen_contents.add(doc.page_content)
-                            results.append(doc)
-                except Exception as search_err:
-                    print(f"⚠️ Vector search error for query '{q}': {search_err}")
+            if self.vectorstore:
+                for q in search_queries:
+                    try:
+                        q_docs = self.vectorstore.similarity_search(q, k=k)
+                        for doc in q_docs:
+                            if doc.page_content and doc.page_content not in seen_contents:
+                                seen_contents.add(doc.page_content)
+                                results.append(doc)
+                    except Exception as search_err:
+                        print(f"⚠️ Vector search error for query '{q}': {search_err}")
 
             if not results:
                 print(f"[RAG] Vector search returned 0 matches for: '{query[:30]}'. Trying direct PDF document scan...")
@@ -374,22 +370,6 @@ Answer:"""
         k_value = 4 if is_math else 3
 
         context_text, docs, sources_metadata = self._get_context_and_docs(search_query, k=k_value)
-
-        # AUTO-REFRESH RETRY: If vectorstore is empty or missing chunks, trigger fresh indexing & retry
-        if not docs or not context_text or not context_text.strip():
-            print(f"[RAG] No chunks retrieved for '{query_text}'. Triggering auto-refresh...")
-            try:
-                import sys
-                rag_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-                if rag_dir not in sys.path:
-                    sys.path.insert(0, rag_dir)
-                from main import load_all_pdfs, build_unified_vectorstore
-                vs, _ = build_unified_vectorstore()
-                if vs:
-                    self.vectorstore = vs
-                    context_text, docs, sources_metadata = self._get_context_and_docs(search_query, k=k_value)
-            except Exception as auto_err:
-                print(f"⚠️ Auto-refresh vectorstore note: {auto_err}")
 
         t_ret = round((time.time() - t_ret_start) * 1000, 2)
 
