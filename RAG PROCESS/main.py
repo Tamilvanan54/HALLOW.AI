@@ -177,7 +177,7 @@ def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
         print("⚡ Using HuggingFace all-MiniLM-L6-v2 local embeddings.")
     except Exception as e:
         print(f"⚠️ Fast HuggingFaceEmbeddings unavailable ({e}). Falling back to OllamaEmbeddings...")
-        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        embeddings = OllamaEmbeddings(model="qwen2.5:1.5b")
 
     docs, pdf_vocab = load_all_pdfs()
 
