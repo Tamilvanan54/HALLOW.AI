@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import re
 import time
@@ -8,6 +9,12 @@ from langchain_ollama import ChatOllama
 from app.abbreviations import expand_query_abbreviations
 from app.spelling import correct_query_spelling
 from app.history import resolve_history_reference
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 EXACT_REFUSAL_MESSAGE = "I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question."
 NO_EXAMPLE_FALLBACK = "### Example\nThe uploaded documents do not provide a specific example for this concept."
@@ -159,7 +166,7 @@ class RAGEngine:
 
     def _get_context_and_docs(self, query: str, k: int = 4) -> tuple[str, list, list]:
         """
-        Retrieve relevant document chunks from vectorstore.
+        Retrieve relevant document chunks from vectorstore with strict similarity scoring & keyword matching.
         Returns: (context_text, valid_docs, raw_sources_metadata)
         """
         try:
@@ -169,21 +176,53 @@ class RAGEngine:
             if "logic" in q_low or "equivalen" in q_low or "table" in q_low:
                 search_queries.append("logical equivalences laws identity commutative associative distributive de morgan tautology")
 
+            # Extract non-stopword key topic words from query
+            stop_words = {
+                "what", "where", "who", "when", "why", "how", "tell", "explain",
+                "does", "have", "with", "this", "that", "from", "your", "find",
+                "give", "show", "is", "are", "was", "were", "the", "and", "for",
+                "can", "you", "about", "which", "could", "would", "should", "some",
+                "into", "than", "then", "them", "these", "those", "each", "every",
+                "mean", "meant", "meaning", "define", "definition", "describe", "write",
+                "list", "note", "short", "detail", "brief", "please", "answer"
+            }
+            raw_tokens = re.findall(r'\b[a-zA-Z0-9_]{3,}\b', q_low)
+            query_key_terms = [t for t in raw_tokens if t not in stop_words]
+
             results = []
             seen_contents = set()
             if self.vectorstore:
                 for q in search_queries:
                     try:
-                        q_docs = self.vectorstore.similarity_search(q, k=k)
-                        for doc in q_docs:
-                            if doc.page_content and doc.page_content not in seen_contents:
-                                seen_contents.add(doc.page_content)
-                                results.append(doc)
+                        # Use similarity_search_with_score to inspect L2 distance
+                        q_docs_with_score = self.vectorstore.similarity_search_with_score(q, k=k)
+                        for doc, score in q_docs_with_score:
+                            if not doc.page_content or doc.page_content in seen_contents:
+                                continue
+
+                            # Score threshold: L2 distance in Chroma (>1.25 = weak / low similarity)
+                            c_low = doc.page_content.lower()
+
+                            # Keyword check if key terms exist
+                            has_keyword_match = True
+                            if query_key_terms:
+                                has_keyword_match = any(t in c_low for t in query_key_terms)
+
+                            # If distance is too high OR no keyword match when key terms exist, skip
+                            if score > 1.25 and not has_keyword_match:
+                                print(f"[RAG] Skipping weak chunk (score={score:.3f}, no keyword match): '{doc.page_content[:50]}...'")
+                                continue
+                            if score > 1.35:
+                                print(f"[RAG] Skipping irrelevantly distant chunk (score={score:.3f}): '{doc.page_content[:50]}...'")
+                                continue
+
+                            seen_contents.add(doc.page_content)
+                            results.append(doc)
                     except Exception as search_err:
                         print(f"⚠️ Vector search error for query '{q}': {search_err}")
 
-            if not results:
-                print(f"[RAG] Vector search returned 0 matches for: '{query[:30]}'. Trying direct PDF document scan...")
+            if not results and query_key_terms:
+                print(f"[RAG] Vector search returned 0 strong matches for: '{query[:30]}'. Checking direct key term matches...")
                 try:
                     import sys
                     rag_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -191,18 +230,20 @@ class RAGEngine:
                         sys.path.insert(0, rag_dir)
                     from main import load_all_pdfs
                     all_chunks, _ = load_all_pdfs()
-                    query_terms = [t for t in query.lower().split() if len(t) > 2]
                     for chunk in all_chunks:
                         c_low = chunk.page_content.lower()
-                        if any(term in c_low for term in query_terms):
+                        # Require at least one key term match
+                        if any(term in c_low for term in query_key_terms):
                             if chunk.page_content not in seen_contents:
                                 seen_contents.add(chunk.page_content)
                                 results.append(chunk)
+                                if len(results) >= k:
+                                    break
                 except Exception as fb_err:
                     print(f"⚠️ Direct PDF fallback note: {fb_err}")
 
             if not results:
-                print(f"[RAG] No document chunks found for: '{query[:30]}'")
+                print(f"[RAG] No relevant document chunks found for: '{query[:30]}'")
                 return "", [], []
 
             valid_docs = results[:k]
@@ -218,7 +259,7 @@ class RAGEngine:
                     "score": 1.0
                 })
 
-            print(f"[RAG] Retrieved {len(valid_docs)} document chunks for query: '{query[:30]}'")
+            print(f"[RAG] Retrieved {len(valid_docs)} relevant document chunks for query: '{query[:30]}'")
             context_limit = 1400 if is_math else 900
             context_text = "\n\n".join([doc.page_content for doc in valid_docs])[:context_limit]
             return context_text, valid_docs, sources_metadata
@@ -230,8 +271,14 @@ class RAGEngine:
     def _build_prompt(self, query: str, context_text: str) -> str:
         is_math, is_big, is_diagram = self._classify_query(query)
 
-        strict_guardrail = """Provide a clear, detailed, and accurate answer based on the Context.
-Explain key concepts, steps, and provide a clear practical example at the end."""
+        strict_guardrail = """CRITICAL MANDATORY INSTRUCTION:
+You are a strict document QA assistant. Answer the user's question ONLY and EXCLUSIVELY using the factual information provided in the Context below.
+
+STRICT RULES:
+1. If the Context does NOT contain enough relevant information to directly answer the question, or if the question asks about a topic not mentioned in the Context, you MUST respond with EXACTLY:
+I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question.
+2. Do NOT use any outside knowledge, general world knowledge, or attempt to guess/invent an answer.
+3. If the answer IS in the Context, explain it accurately based ONLY on the Context."""
 
         if is_diagram:
             return f"""Context:
@@ -303,6 +350,9 @@ Answer:"""
             return answer_text
 
         cleaned = answer_text.strip()
+        if "can answer only from the uploaded study materials" in cleaned.lower() or EXACT_REFUSAL_MESSAGE.lower() in cleaned.lower():
+            return EXACT_REFUSAL_MESSAGE
+
         # Deduplicate any repeated ### Example headers
         cleaned = re.sub(r'(?:\n*\s*###?\s*Example:?\s*)+', r'\n\n### Example\n', cleaned, flags=re.IGNORECASE)
 
@@ -400,11 +450,16 @@ Answer:"""
                     full_output += token
                     yield f'event: token\ndata: {{"token": {json.dumps(token)}}}\n\n'
 
-            # Ensure answer includes Example section
+            # Ensure answer includes Example section or exact refusal
             full_output = self._ensure_example_section(full_output, context_text)
             t_total = round((time.time() - t_start) * 1000, 2)
 
-            yield f'event: final\ndata: {{"answer": {json.dumps(full_output)}, "sources": {json.dumps(sources_metadata)}, "confidence": "grounded", "refusal_reason": null, "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"normalization": {t_norm}, "typo_correction": {t_spell}, "retrieval": {t_ret}, "llm_first_token": {t_llm_first or 0}, "total": {t_total}}}}}\n\n'
+            is_refusal = (full_output == EXACT_REFUSAL_MESSAGE or "can answer only from the uploaded study materials" in full_output.lower())
+            if is_refusal:
+                full_output = EXACT_REFUSAL_MESSAGE
+                yield f'event: final\ndata: {{"answer": {json.dumps(full_output)}, "sources": [], "confidence": "refused", "refusal_reason": "not_in_study_materials", "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"normalization": {t_norm}, "typo_correction": {t_spell}, "retrieval": {t_ret}, "llm_first_token": {t_llm_first or 0}, "total": {t_total}}}}}\n\n'
+            else:
+                yield f'event: final\ndata: {{"answer": {json.dumps(full_output)}, "sources": {json.dumps(sources_metadata)}, "confidence": "grounded", "refusal_reason": null, "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"normalization": {t_norm}, "typo_correction": {t_spell}, "retrieval": {t_ret}, "llm_first_token": {t_llm_first or 0}, "total": {t_total}}}}}\n\n'
 
         except Exception as err:
             print(f"⚠️ Streaming error with '{self.model_name}': {err}. Attempting fallback model stream...")
@@ -419,7 +474,12 @@ Answer:"""
                         yield f'event: token\ndata: {{"token": {json.dumps(token)}}}\n\n'
 
                 full_output = self._ensure_example_section(full_output, context_text)
-                yield f'event: final\ndata: {{"answer": {json.dumps(full_output)}, "sources": {json.dumps(sources_metadata)}, "confidence": "grounded", "refusal_reason": null, "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
+                is_refusal = (full_output == EXACT_REFUSAL_MESSAGE or "can answer only from the uploaded study materials" in full_output.lower())
+                if is_refusal:
+                    full_output = EXACT_REFUSAL_MESSAGE
+                    yield f'event: final\ndata: {{"answer": {json.dumps(full_output)}, "sources": [], "confidence": "refused", "refusal_reason": "not_in_study_materials", "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
+                else:
+                    yield f'event: final\ndata: {{"answer": {json.dumps(full_output)}, "sources": {json.dumps(sources_metadata)}, "confidence": "grounded", "refusal_reason": null, "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
             except Exception as fb_err:
                 print(f"❌ Fallback streaming error: {fb_err}")
                 err_msg = EXACT_REFUSAL_MESSAGE
