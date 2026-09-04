@@ -1,0 +1,38 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+rag_venv/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Build
+dist/
+build/
+.vite/
+
+# Local databases / indexes
+chroma_db/
+faiss_index/
+
+# Uploaded/generated data
+uploads/
+retrieved_contexts/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

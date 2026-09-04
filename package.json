@@ -1,0 +1,19 @@
+{
+  "name": "hallow-ai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "rag": "cd \"RAG PROCESS\" && set PYTHONIOENCODING=utf-8 && uvicorn main:app --port 8001",
+    "backend": "cd \"BACKEND PROCESS\" && set PYTHONIOENCODING=utf-8 && uvicorn main:app --port 8000",
+    "frontend": "cd \"FRONTEND PROCESS/frontend\" && npm run dev",
+    "start": "concurrently -n \"RAG,BACKEND,FRONTEND\" -c \"magenta,cyan,green\" \"npm run rag\" \"npm run backend\" \"npm run frontend\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "concurrently": "^10.0.4"
+  }
+}
