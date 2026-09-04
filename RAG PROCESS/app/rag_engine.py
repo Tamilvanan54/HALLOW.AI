@@ -222,10 +222,8 @@ class RAGEngine:
     def _build_prompt(self, query: str, context_text: str) -> str:
         is_math, is_big, is_diagram = self._classify_query(query)
 
-        strict_guardrail = """STRICT RULE: Answer using ONLY facts explicitly mentioned in the Context below.
-If the Context does not contain information to answer the question, write EXACTLY:
-"I can answer only from the uploaded study materials. I could not find enough relevant information in the available documents for this question."
-Do NOT use outside knowledge."""
+        strict_guardrail = """Provide a clear, detailed, and accurate answer based on the Context.
+Explain key concepts, steps, and provide a clear practical example at the end."""
 
         if is_diagram:
             return f"""Context:
@@ -383,11 +381,10 @@ Answer:"""
 
         t_ret = round((time.time() - t_ret_start) * 1000, 2)
 
-        # STRICT REFUSAL: If no relevant chunks exist in uploaded PDFs, respond with exact refusal
+        # If vectorstore search returned empty, fall back to direct study context prompt so user ALWAYS receives a clean answer
         if not docs or not context_text or not context_text.strip():
-            print(f"[RAG] Refusing query: '{query_text}' -> No matching PDF document chunks found.")
-            yield f'event: final\ndata: {{"answer": {json.dumps(EXACT_REFUSAL_MESSAGE)}, "sources": [], "confidence": "refused", "refusal_reason": "low_relevance", "corrected_query": {json.dumps(corrected_query if display_note else None)}, "timing_ms": {{"normalization": {t_norm}, "typo_correction": {t_spell}, "retrieval": {t_ret}, "total": {round((time.time() - t_start) * 1000, 2)}}}}}\n\n'
-            return
+            print(f"[RAG] Vectorstore context sparse for '{query_text}'. Generating direct study response...")
+            context_text = f"Study Material Query: {corrected_query}"
 
         # Send preliminary sources metadata
         yield f'event: meta\ndata: {{"sources": {json.dumps(sources_metadata)}, "corrected_query": {json.dumps(corrected_query if display_note else None)}}}\n\n'
