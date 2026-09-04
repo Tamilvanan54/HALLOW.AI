@@ -186,15 +186,13 @@ def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
         embedding_function=embeddings,
     )
 
-    # Safely refresh collection without file lock errors
     try:
-        col = vectorstore._collection
-        existing_data = col.get()
-        if existing_data and "ids" in existing_data and len(existing_data["ids"]) > 0:
-            col.delete(ids=existing_data["ids"])
-            print(f"🧹 Cleared {len(existing_data['ids'])} stale chunks from vectorstore.")
-    except Exception as clear_err:
-        print(f"⚠️ Vectorstore refresh note: {clear_err}")
+        chunk_count = vectorstore._collection.count()
+        if chunk_count > 0:
+            print(f"✅ Vector database loaded existing {chunk_count} document chunks instantly.")
+            return vectorstore, pdf_vocab
+    except Exception as check_err:
+        print(f"⚠️ Vectorstore count note: {check_err}")
 
     if docs:
         batch_size = 100
@@ -208,8 +206,11 @@ def build_unified_vectorstore() -> tuple[Chroma | None, set[str]]:
             except Exception as batch_err:
                 print(f"   ❌ Batch embedding note: {batch_err}")
 
-    chunk_count = vectorstore._collection.count()
-    print(f"✅ Vector database loaded successfully with {chunk_count} document chunks!")
+    try:
+        chunk_count = vectorstore._collection.count()
+        print(f"✅ Vector database initialized with {chunk_count} document chunks!")
+    except Exception:
+        pass
     return vectorstore, pdf_vocab
 
 @asynccontextmanager
