@@ -35,8 +35,22 @@ export default function Chat() {
   } = useChatHistory();
 
   useEffect(() => {
-    localStorage.removeItem("activeChatId");
+    const savedActiveId = localStorage.getItem("activeChatId");
+    if (savedActiveId) {
+      selectChat(savedActiveId);
+    }
   }, []);
+
+  useEffect(() => {
+    if (chatHistory && chatHistory.length > 0 && !currentChatId) {
+      const savedActiveId = localStorage.getItem("activeChatId");
+      if (savedActiveId) {
+        selectChat(savedActiveId);
+      } else {
+        selectChat(chatHistory[0].id);
+      }
+    }
+  }, [chatHistory]);
 
   const userMessageRefs = useRef({});
 
@@ -101,12 +115,18 @@ export default function Chat() {
         : (response.data?.messages || response.data?.data || []);
 
       if (Array.isArray(rawList)) {
-        const formattedMessages = rawList.map((m) => ({
-          sender: (m.sender && (m.sender.toLowerCase() === "user" || m.sender === "You")) ? "User" : "AI",
-          text: m.text || m.message || "",
-          streaming: false,
-          status: false
-        }));
+        const formattedMessages = rawList.map((m) => {
+          const isUser = (m.sender && (m.sender.toLowerCase() === "user" || m.sender === "you"));
+          const textContent = m.text || m.message || "";
+          const isRefusal = !isUser && textContent.includes("I can answer only from the uploaded study materials");
+          return {
+            sender: isUser ? "User" : "AI",
+            text: textContent,
+            streaming: false,
+            status: false,
+            confidence: isRefusal ? "refused" : "grounded"
+          };
+        });
         setMessages(formattedMessages);
       } else {
         setMessages([]);

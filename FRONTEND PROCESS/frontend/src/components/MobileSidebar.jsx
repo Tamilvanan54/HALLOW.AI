@@ -21,7 +21,9 @@ chatHistory = [],
 startNewChat,
 deleteChat,
 openChat,
+selectChat,
 togglePin,
+currentChatId
 }) {
 
 
@@ -237,40 +239,33 @@ togglePin,
   (chat) => (
 
    <div
-  key={chat.id}
+  key={chat.id || chat._id}
+  onClick={() => {
+    const handleSelect = selectChat || openChat;
+    if (handleSelect) handleSelect(chat.id || chat._id || chat);
+    setIsOpen(false);
+  }}
   style={{
     padding:"12px",
-
-    background:
-  chat.pinned
-    ? "#3a3a3a"
-    : "#2a2a2a",
-
-    border:
-      chat.pinned
-        ? "1px solid #4b5563"
-        : "1px solid transparent",
-
+    background: String(currentChatId) === String(chat.id || chat._id) ? "#3a3a3a" : (chat.pinned ? "#2e2e2e" : "#2a2a2a"),
+    border: String(currentChatId) === String(chat.id || chat._id) ? "1px solid #38bdf8" : (chat.pinned ? "1px solid #4b5563" : "1px solid transparent"),
     borderRadius:"10px",
     marginBottom:"8px",
     display:"flex",
     justifyContent:"space-between",
     alignItems:"center",
+    cursor:"pointer"
   }}
 >
 
       <div
-        onClick={() => {
-          const handleSelect = selectChat || openChat;
-          if (handleSelect) handleSelect(chat.id || chat._id || chat);
-          setIsOpen(false);
-        }}
         style={{
           cursor:"pointer",
           display:"flex",
           gap:"10px",
           alignItems:"center",
           flex:1,
+          color: String(currentChatId) === String(chat.id || chat._id) ? "#38bdf8" : "white"
         }}
       >
 
