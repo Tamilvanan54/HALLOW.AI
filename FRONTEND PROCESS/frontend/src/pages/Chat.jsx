@@ -41,17 +41,6 @@ export default function Chat() {
     }
   }, []);
 
-  useEffect(() => {
-    if (chatHistory && chatHistory.length > 0 && !currentChatId) {
-      const savedActiveId = localStorage.getItem("activeChatId");
-      if (savedActiveId) {
-        selectChat(savedActiveId);
-      } else {
-        selectChat(chatHistory[0].id);
-      }
-    }
-  }, [chatHistory]);
-
   const userMessageRefs = useRef({});
 
   // AUTO SCROLL - Align scroll to the START of the current user question / response block

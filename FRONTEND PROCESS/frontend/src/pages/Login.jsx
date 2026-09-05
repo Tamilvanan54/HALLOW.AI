@@ -53,6 +53,8 @@ export default function Login() {
           email
         );
 
+        localStorage.removeItem("activeChatId");
+
         navigate("/chat");
 
       } else {
