@@ -98,9 +98,13 @@ export default function ChatWindow({ messages, userMessageRefs }) {
 
   if (!messages || messages.length === 0) {
     const rawName = localStorage.getItem("name") || localStorage.getItem("email") || "User";
-    const displayName = rawName.includes("@")
-      ? rawName.split("@")[0]
-      : rawName.charAt(0).toUpperCase() + rawName.slice(1);
+    let formattedName = rawName.includes("@") ? rawName.split("@")[0] : rawName;
+    // Format name to clean Title Case (e.g. TAMIZHX -> Tamizhx)
+    formattedName = formattedName
+      .toLowerCase()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
 
     return (
       <div
@@ -113,44 +117,139 @@ export default function ChatWindow({ messages, userMessageRefs }) {
           minHeight: "100%",
           color: "white",
           textAlign: "center",
-          padding: "30px 20px",
-          boxSizing: "border-box"
+          padding: "40px 20px",
+          boxSizing: "border-box",
+          position: "relative"
         }}
       >
-        <img
-          src="/havox-full-logo.png"
-          alt="HavoxAI"
+        {/* Ambient Radial Glow */}
+        <div
           style={{
-            height: "70px",
-            width: "auto",
-            marginBottom: "24px",
-            objectFit: "contain"
+            position: "absolute",
+            width: "350px",
+            height: "350px",
+            background: "radial-gradient(circle, rgba(56, 189, 248, 0.12) 0%, rgba(15, 23, 42, 0) 70%)",
+            borderRadius: "50%",
+            pointerEvents: "none",
+            zIndex: 0
           }}
         />
 
-        <h1
-          style={{
-            fontSize: "30px",
-            fontWeight: "700",
-            color: "#f8fafc",
-            marginBottom: "12px",
-            letterSpacing: "-0.5px"
-          }}
-        >
-          Welcome, <span style={{ color: "#38bdf8" }}>{displayName}</span> 👋
-        </h1>
+        <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+          {/* Logo Frame */}
+          <div style={{ marginBottom: "24px", padding: "10px 16px", background: "rgba(255, 255, 255, 0.03)", borderRadius: "20px", border: "1px solid rgba(255, 255, 255, 0.08)", backdropFilter: "blur(8px)" }}>
+            <img
+              src="/havox-full-logo.png"
+              alt="HavoxAI"
+              style={{
+                height: "65px",
+                width: "auto",
+                objectFit: "contain",
+                display: "block"
+              }}
+            />
+          </div>
 
-        <p
-          style={{
-            color: "#9ca3af",
-            fontSize: "16px",
-            maxWidth: "500px",
-            lineHeight: "1.6",
-            margin: "0 auto"
-          }}
-        >
-          What would you like to ask or study today? Type any question below to get instant answers from your uploaded study materials.
-        </p>
+          {/* Premium Gradient Title */}
+          <h1
+            style={{
+              fontSize: "36px",
+              fontWeight: "800",
+              letterSpacing: "-0.8px",
+              marginBottom: "14px",
+              fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }}
+          >
+            <span style={{ color: "#f8fafc" }}>Welcome, </span>
+            <span
+              style={{
+                background: "linear-gradient(135deg, #38bdf8 0%, #818cf8 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent"
+              }}
+            >
+              {formattedName}
+            </span>{" "}
+            <span style={{ fontSize: "32px" }}>👋</span>
+          </h1>
+
+          {/* Subtitle */}
+          <p
+            style={{
+              color: "#94a3b8",
+              fontSize: "15px",
+              fontWeight: "400",
+              maxWidth: "520px",
+              lineHeight: "1.7",
+              margin: "0 0 32px 0",
+              letterSpacing: "0.2px"
+            }}
+          >
+            What would you like to study or ask about today? Type any question below to get instant answers from your uploaded study materials.
+          </p>
+
+          {/* Feature Badge Cards */}
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              flexWrap: "wrap",
+              justifyContent: "center",
+              maxWidth: "600px"
+            }}
+          >
+            <div
+              style={{
+                background: "rgba(30, 41, 59, 0.6)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                padding: "10px 16px",
+                borderRadius: "20px",
+                fontSize: "13px",
+                color: "#cbd5e1",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                backdropFilter: "blur(4px)"
+              }}
+            >
+              <span>⚡</span> <span>Instant RAG Streaming</span>
+            </div>
+
+            <div
+              style={{
+                background: "rgba(30, 41, 59, 0.6)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                padding: "10px 16px",
+                borderRadius: "20px",
+                fontSize: "13px",
+                color: "#cbd5e1",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                backdropFilter: "blur(4px)"
+              }}
+            >
+              <span>📄</span> <span>Grounded Study Materials</span>
+            </div>
+
+            <div
+              style={{
+                background: "rgba(30, 41, 59, 0.6)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                padding: "10px 16px",
+                borderRadius: "20px",
+                fontSize: "13px",
+                color: "#cbd5e1",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                backdropFilter: "blur(4px)"
+              }}
+            >
+              <span>📐</span> <span>Math & Logic Solutions</span>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
