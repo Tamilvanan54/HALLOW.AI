@@ -9,6 +9,7 @@ export default function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -181,26 +182,43 @@ export default function Login() {
           }}
         />
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) =>
-            setPassword(
-              e.target.value
-            )
-          }
-          style={{
-            width: "100%",
-            padding: "14px",
-            background: "#262626",
-            color: "white",
-            border: "1px solid #404040",
-            borderRadius: "10px",
-            outline: "none",
-            boxSizing: "border-box"
-          }}
-        />
+        <div style={{ position: "relative", width: "100%", marginTop: "15px" }}>
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Password"
+            value={password}
+            onChange={(e) =>
+              setPassword(
+                e.target.value
+              )
+            }
+            style={{
+              width: "100%",
+              padding: "14px 45px 14px 14px",
+              background: "#262626",
+              color: "white",
+              border: "1px solid #404040",
+              borderRadius: "10px",
+              outline: "none",
+              boxSizing: "border-box"
+            }}
+          />
+          <span
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              position: "absolute",
+              right: "14px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              cursor: "pointer",
+              fontSize: "18px",
+              userSelect: "none"
+            }}
+            title={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? "👁️" : "🙈"}
+          </span>
+        </div>
 
         <div
           style={{

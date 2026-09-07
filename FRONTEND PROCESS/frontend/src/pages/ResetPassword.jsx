@@ -29,6 +29,12 @@ export default function ResetPassword() {
     setConfirmPassword
   ] = useState("");
 
+  const [showPassword, setShowPassword] =
+    useState(false);
+
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
+
   const [loading, setLoading] =
     useState(false);
 
@@ -165,43 +171,71 @@ export default function ResetPassword() {
           }}
         />
 
-        <input
-          type="password"
-          placeholder="New Password"
-          value={password}
-          onChange={(e) =>
-            setPassword(
-              e.target.value
-            )
-          }
-          style={{
-            width: "100%",
-            padding: "12px",
-            marginTop: "12px",
-            boxSizing:
-              "border-box",
-          }}
-        />
+        <div style={{ position: "relative", width: "100%", marginTop: "12px" }}>
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="New Password"
+            value={password}
+            onChange={(e) =>
+              setPassword(
+                e.target.value
+              )
+            }
+            style={{
+              width: "100%",
+              padding: "12px 40px 12px 12px",
+              boxSizing: "border-box"
+            }}
+          />
+          <span
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              position: "absolute",
+              right: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              cursor: "pointer",
+              fontSize: "18px",
+              userSelect: "none"
+            }}
+            title={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? "👁️" : "🙈"}
+          </span>
+        </div>
 
-        <input
-          type="password"
-          placeholder="Confirm Password"
-          value={
-            confirmPassword
-          }
-          onChange={(e) =>
-            setConfirmPassword(
-              e.target.value
-            )
-          }
-          style={{
-            width: "100%",
-            padding: "12px",
-            marginTop: "12px",
-            boxSizing:
-              "border-box",
-          }}
-        />
+        <div style={{ position: "relative", width: "100%", marginTop: "12px" }}>
+          <input
+            type={showConfirmPassword ? "text" : "password"}
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChange={(e) =>
+              setConfirmPassword(
+                e.target.value
+              )
+            }
+            style={{
+              width: "100%",
+              padding: "12px 40px 12px 12px",
+              boxSizing: "border-box"
+            }}
+          />
+          <span
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            style={{
+              position: "absolute",
+              right: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              cursor: "pointer",
+              fontSize: "18px",
+              userSelect: "none"
+            }}
+            title={showConfirmPassword ? "Hide password" : "Show password"}
+          >
+            {showConfirmPassword ? "👁️" : "🙈"}
+          </span>
+        </div>
 
         <button
           onClick={

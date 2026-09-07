@@ -16,6 +16,9 @@ export default function Signup() {
   const [password, setPassword] =
     useState("");
 
+  const [showPassword, setShowPassword] =
+    useState(false);
+
   const [role, setRole] =
     useState("student");
 
@@ -128,21 +131,38 @@ export default function Signup() {
           }}
         />
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) =>
-            setPassword(
-              e.target.value
-            )
-          }
-          style={{
-            width: "100%",
-            padding: "12px",
-            marginTop: "15px",
-          }}
-        />
+        <div style={{ position: "relative", width: "100%", marginTop: "15px" }}>
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Password"
+            value={password}
+            onChange={(e) =>
+              setPassword(
+                e.target.value
+              )
+            }
+            style={{
+              width: "100%",
+              padding: "12px 40px 12px 12px",
+              boxSizing: "border-box"
+            }}
+          />
+          <span
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              position: "absolute",
+              right: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              cursor: "pointer",
+              fontSize: "18px",
+              userSelect: "none"
+            }}
+            title={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? "👁️" : "🙈"}
+          </span>
+        </div>
 
         <select
           value={role}
