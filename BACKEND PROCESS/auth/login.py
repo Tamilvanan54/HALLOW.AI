@@ -89,6 +89,9 @@ def login_user(
             "email":
                 user.email,
 
+            "name":
+                user.name or user.email.split("@")[0],
+
             "last_login":
                 str(user.last_login)
 

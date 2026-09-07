@@ -96,6 +96,65 @@ export default function ChatWindow({ messages, userMessageRefs }) {
     }
   };
 
+  if (!messages || messages.length === 0) {
+    const rawName = localStorage.getItem("name") || localStorage.getItem("email") || "User";
+    const displayName = rawName.includes("@")
+      ? rawName.split("@")[0]
+      : rawName.charAt(0).toUpperCase() + rawName.slice(1);
+
+    return (
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100%",
+          color: "white",
+          textAlign: "center",
+          padding: "30px 20px",
+          boxSizing: "border-box"
+        }}
+      >
+        <img
+          src="/havox-full-logo.png"
+          alt="HavoxAI"
+          style={{
+            height: "70px",
+            width: "auto",
+            marginBottom: "24px",
+            objectFit: "contain"
+          }}
+        />
+
+        <h1
+          style={{
+            fontSize: "30px",
+            fontWeight: "700",
+            color: "#f8fafc",
+            marginBottom: "12px",
+            letterSpacing: "-0.5px"
+          }}
+        >
+          Welcome, <span style={{ color: "#38bdf8" }}>{displayName}</span> 👋
+        </h1>
+
+        <p
+          style={{
+            color: "#9ca3af",
+            fontSize: "16px",
+            maxWidth: "500px",
+            lineHeight: "1.6",
+            margin: "0 auto"
+          }}
+        >
+          What would you like to ask or study today? Type any question below to get instant answers from your uploaded study materials.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{

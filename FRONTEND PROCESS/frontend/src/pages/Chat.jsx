@@ -35,6 +35,18 @@ export default function Chat() {
   } = useChatHistory();
 
   useEffect(() => {
+    const savedName = localStorage.getItem("name");
+    const email = localStorage.getItem("email");
+    if (!savedName && email) {
+      axios.get(`${API_BASE_URL}/profile`, { params: { email } })
+        .then((res) => {
+          if (res.data && res.data.name) {
+            localStorage.setItem("name", res.data.name);
+          }
+        })
+        .catch(() => {});
+    }
+
     const savedActiveId = localStorage.getItem("activeChatId");
     if (savedActiveId) {
       selectChat(savedActiveId);

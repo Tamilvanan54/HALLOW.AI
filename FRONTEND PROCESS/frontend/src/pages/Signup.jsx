@@ -45,6 +45,10 @@ export default function Signup() {
         response.data.status
       ) {
 
+        if (name) {
+          localStorage.setItem("name", name);
+        }
+
         navigate("/");
 
       } else {

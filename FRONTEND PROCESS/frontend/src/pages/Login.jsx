@@ -55,6 +55,12 @@ export default function Login() {
           email
         );
 
+        if (response.data.name) {
+          localStorage.setItem("name", response.data.name);
+        } else {
+          localStorage.setItem("name", email.split("@")[0]);
+        }
+
         localStorage.removeItem("activeChatId");
 
         navigate("/chat");
