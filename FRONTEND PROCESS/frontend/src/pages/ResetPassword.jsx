@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../config/api";
-import { FiEye, FiEyeOff } from "react-icons/fi";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 import {
   useNavigate,
@@ -208,7 +208,7 @@ export default function ResetPassword() {
             }}
             title={showPassword ? "Hide password" : "Show password"}
           >
-            {showPassword ? <FiEyeOff /> : <FiEye />}
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
           </button>
         </div>
 
@@ -248,7 +248,7 @@ export default function ResetPassword() {
             }}
             title={showConfirmPassword ? "Hide password" : "Show password"}
           >
-            {showConfirmPassword ? <FiEyeOff /> : <FiEye />}
+            {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
           </button>
         </div>
 

@@ -389,3 +389,15 @@ body,
   height: calc(100vh - 60px) !important;
   width: 100vw !important;
 }
+
+/* ==========================
+   HIDE NATIVE BROWSER PASSWORD REVEAL ICONS
+========================== */
+input::-ms-reveal,
+input::-ms-clear,
+input::-webkit-contacts-auto-fill-button,
+input::-webkit-credentials-auto-fill-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}

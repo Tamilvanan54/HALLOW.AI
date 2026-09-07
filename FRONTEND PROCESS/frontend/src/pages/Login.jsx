@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_BASE_URL } from "../config/api";
-import { FiEye, FiEyeOff } from "react-icons/fi";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 export default function Login() {
 
@@ -224,7 +224,7 @@ export default function Login() {
             }}
             title={showPassword ? "Hide password" : "Show password"}
           >
-            {showPassword ? <FiEyeOff /> : <FiEye />}
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
           </button>
         </div>
 
