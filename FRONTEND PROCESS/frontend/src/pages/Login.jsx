@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_BASE_URL } from "../config/api";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 
 export default function Login() {
 
@@ -203,21 +204,28 @@ export default function Login() {
               boxSizing: "border-box"
             }}
           />
-          <span
+          <button
+            type="button"
             onClick={() => setShowPassword(!showPassword)}
             style={{
               position: "absolute",
               right: "14px",
               top: "50%",
               transform: "translateY(-50%)",
+              background: "transparent",
+              border: "none",
+              color: "#9ca3af",
               cursor: "pointer",
-              fontSize: "18px",
-              userSelect: "none"
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0",
+              fontSize: "18px"
             }}
             title={showPassword ? "Hide password" : "Show password"}
           >
-            {showPassword ? "👁️" : "🙈"}
-          </span>
+            {showPassword ? <FiEyeOff /> : <FiEye />}
+          </button>
         </div>
 
         <div
