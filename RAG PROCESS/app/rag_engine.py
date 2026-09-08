@@ -131,38 +131,33 @@ class RAGEngine:
         return None
 
     def _detect_mark_level(self, query: str) -> int | None:
-        """Detect explicit mark requirements in question (1, 2, 5, 8, 16 marks)."""
+        """Detect any explicit mark requirement in question (e.g. 1 mark, 2 marks, 5 marks, 7, 8, 10, 12, 14, 16 marks)."""
         query_lower = query.lower()
 
-        # 16-mark patterns (16 mark, 16-mark, 16mark, 15 mark, 20 mark, sixteen mark, mark 16, 16 marks, 16 mark level)
-        if re.search(r'\b(16|15|20)\s*-?\s*(marks?|m|mark\s*level)\b', query_lower) or \
-           re.search(r'\b(marks?|m)\s*-?\s*(16|15|20)\b', query_lower) or \
-           "sixteen mark" in query_lower or "sixteen marks" in query_lower:
-            return 16
+        # Word numbers mapping
+        word_map = {
+            "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+            "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+            "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+            "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20
+        }
+        for word, val in word_map.items():
+            if re.search(r'\b' + word + r'\s*-?\s*(marks?|m|mark\s*level)\b', query_lower) or \
+               re.search(r'\b(marks?|m)\s*-?\s*' + word + r'\b', query_lower):
+                return val
 
-        # 8-mark patterns (8 mark, 8-mark, 8mark, 10 mark, 12 mark, eight mark, mark 8, 8 marks, 8 mark level)
-        if re.search(r'\b(8|10|12)\s*-?\s*(marks?|m|mark\s*level)\b', query_lower) or \
-           re.search(r'\b(marks?|m)\s*-?\s*(8|10|12)\b', query_lower) or \
-           "eight mark" in query_lower or "ten mark" in query_lower or "eight marks" in query_lower or "ten marks" in query_lower:
-            return 8
+        # Match digit patterns like "2 mark", "5 marks", "7 mark", "10 mark", "12 mark", "14 mark", "16 mark", "mark 2"
+        m1 = re.search(r'\b(\d{1,2})\s*-?\s*(marks?|m|mark\s*level)\b', query_lower)
+        if m1:
+            val = int(m1.group(1))
+            if 1 <= val <= 30:
+                return val
 
-        # 5-mark patterns (5 mark, 5-mark, 5mark, 6 mark, five mark, mark 5, 5 marks, 5 mark level)
-        if re.search(r'\b(5|6)\s*-?\s*(marks?|m|mark\s*level)\b', query_lower) or \
-           re.search(r'\b(marks?|m)\s*-?\s*(5|6)\b', query_lower) or \
-           "five mark" in query_lower or "five marks" in query_lower:
-            return 5
-
-        # 2-mark patterns (2 mark, 2-mark, 2mark, 3 mark, 4 mark, two mark, mark 2, 2 marks, 2 mark level)
-        if re.search(r'\b(2|3|4)\s*-?\s*(marks?|m|mark\s*level)\b', query_lower) or \
-           re.search(r'\b(marks?|m)\s*-?\s*(2|3|4)\b', query_lower) or \
-           "two mark" in query_lower or "two marks" in query_lower:
-            return 2
-
-        # 1-mark patterns (1 mark, 1-mark, 1mark, one mark, mark 1, 1 marks, 1 mark level)
-        if re.search(r'\b(1|one)\s*-?\s*(marks?|m|mark\s*level)\b', query_lower) or \
-           re.search(r'\b(marks?|m)\s*-?\s*(1|one)\b', query_lower) or \
-           "1 mark" in query_lower or "one mark" in query_lower or "1 marks" in query_lower or "one marks" in query_lower:
-            return 1
+        m2 = re.search(r'\b(marks?|m)\s*-?\s*(\d{1,2})\b', query_lower)
+        if m2:
+            val = int(m2.group(2))
+            if 1 <= val <= 30:
+                return val
 
         return None
 
@@ -191,7 +186,7 @@ class RAGEngine:
             "in detail", "in-depth", "in depth", "elaborate", "essay", "full explanation"
         ]
         mark_lvl = self._detect_mark_level(query)
-        is_big = any(k in query_lower for k in big_keywords) or (mark_lvl in (8, 16))
+        is_big = any(k in query_lower for k in big_keywords) or (mark_lvl is not None and mark_lvl >= 7)
 
         diagram_keywords = [
             "flowchart", "flow chart", "diagram", "graph", "workflow",
@@ -210,10 +205,11 @@ class RAGEngine:
             mark_level = self._detect_mark_level(query)
             is_math = self._classify_query(query)[0]
 
-            if mark_level == 16:
-                k = max(k, 6)
-            elif mark_level == 8:
-                k = max(k, 5)
+            if mark_level is not None:
+                if mark_level >= 12:
+                    k = max(k, 6)
+                elif mark_level >= 7:
+                    k = max(k, 5)
 
             search_queries = [query]
             q_low = query.lower()
@@ -303,14 +299,17 @@ class RAGEngine:
 
             print(f"[RAG] Retrieved {len(valid_docs)} relevant document chunks for query: '{query[:30]}'")
 
-            if mark_level == 16:
-                context_limit = 3500
-            elif mark_level == 8:
-                context_limit = 2500
-            elif mark_level == 5 or is_math:
-                context_limit = 1800
-            elif mark_level in (1, 2):
-                context_limit = 1000
+            if mark_level is not None:
+                if mark_level >= 12:
+                    context_limit = 3500
+                elif mark_level >= 7:
+                    context_limit = 2500
+                elif mark_level >= 3:
+                    context_limit = 1800
+                elif mark_level in (1, 2):
+                    context_limit = 1200
+                else:
+                    context_limit = 1400 if is_math else 1200
             else:
                 context_limit = 1400 if is_math else 1200
 
@@ -329,73 +328,74 @@ class RAGEngine:
 - Rely ONLY on facts explicitly stated in the Context. Do NOT use outside knowledge.
 - Keep the explanation clear, accurate, and structured."""
 
-        if mark_level == 1:
-            return f"""Context:
+        if mark_level is not None:
+            if mark_level == 1:
+                return f"""Context:
 {context_text}
 
 Question: {query}
 
 Instructions:
 1. {strict_guardrail}
-2. Provide a 1-mark level answer: extremely direct, exact, concise 1-2 sentence answer based ONLY on the Context.
+2. Provide a 1-mark level answer: extremely direct, exact 1-2 sentence answer based ONLY on the Context.
 3. If applicable, include a short 1-line example.
 
 Answer:"""
 
-        if mark_level == 2:
-            return f"""Context:
+            if mark_level == 2:
+                return f"""Context:
 {context_text}
 
 Question: {query}
 
 Instructions:
 1. {strict_guardrail}
-2. Provide a 2-mark level answer: brief and concise explanation (2 to 4 bullet points or lines) based ONLY on the Context.
-3. Leave a blank line, then write "### Example" followed by a small, short example (chinna example) matching a 2-mark question.
+2. Provide a 2-mark level answer: exactly 3 to 5 lines of concise explanation based ONLY on the Context.
+3. Leave a blank line, then write "### Example" followed by a short, small example (chinna example) matching a 2-mark question.
 
 Answer:"""
 
-        if mark_level == 5:
-            return f"""Context:
+            if 3 <= mark_level <= 6:
+                return f"""Context:
 {context_text}
 
 Question: {query}
 
 Instructions:
 1. {strict_guardrail}
-2. Provide a 5-mark level answer: structured moderate-length explanation with key concepts and 4-6 bullet points/sub-sections based ONLY on the Context.
-3. Leave a blank line, then write "### Example" followed by a suitable medium-length practical example matching a 5-mark question.
+2. Provide a {mark_level}-mark level answer: structured answer (slightly longer than a 2-mark answer, 5 to 8 lines with 4-6 bullet points/sub-sections) based ONLY on the Context.
+3. Leave a blank line, then write "### Example" followed by a suitable medium-length practical example matching a {mark_level}-mark question.
 
 Answer:"""
 
-        if mark_level == 8:
-            return f"""Context:
+            if 7 <= mark_level <= 10:
+                return f"""Context:
 {context_text}
 
 Question: {query}
 
 Instructions:
 1. {strict_guardrail}
-2. Provide an 8-mark level detailed answer: structured exam-style response (Definition/Introduction, Core Principles, Key Features/Steps) based ONLY on the Context.
-3. Leave a blank line, then write "### Example" followed by a detailed multi-step example (periya example) matching an 8-mark question.
+2. Provide a {mark_level}-mark level detailed answer: structured exam response (longer and more detailed than a 5-mark answer, covering Definition/Introduction, Core Principles, and Key Steps) based ONLY on the Context.
+3. Leave a blank line, then write "### Example" followed by a detailed multi-step example matching a {mark_level}-mark question.
 
 Answer:"""
 
-        if mark_level == 16:
-            return f"""Context:
+            if mark_level >= 11:
+                return f"""Context:
 {context_text}
 
 Question: {query}
 
 Instructions:
 1. {strict_guardrail}
-2. Provide a full 16-mark level comprehensive, in-depth answer covering:
+2. Provide a full {mark_level}-mark level comprehensive, in-depth answer (significantly longer and more detailed than an 8-mark answer) covering:
    - Overview & Definition
    - Core Architecture / Working Mechanism
    - Detailed Step-by-Step Breakdown
    - Advantages, Applications & Key Features
    (Use clear subheadings and detailed explanations based ONLY on the Context).
-3. Leave a blank line, then write "### Example" followed by a large, comprehensive real-world example (periya example fulla explain pannanum) matching a 16-mark question.
+3. Leave a blank line, then write "### Example" followed by a large, comprehensive real-world example (periya example fulla explain pannanum) matching a {mark_level}-mark question.
 
 Answer:"""
 
@@ -537,11 +537,11 @@ Answer:"""
         t_ret_start = time.time()
         mark_lvl = self._detect_mark_level(corrected_query)
         is_math = self._classify_query(corrected_query)[0]
-        if mark_lvl == 16:
+        if mark_lvl is not None and mark_lvl >= 12:
             k_value = 6
-        elif mark_lvl == 8:
+        elif mark_lvl is not None and mark_lvl >= 7:
             k_value = 5
-        elif mark_lvl == 5 or is_math:
+        elif (mark_lvl is not None and mark_lvl >= 3) or is_math:
             k_value = 4
         else:
             k_value = 3

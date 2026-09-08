@@ -160,7 +160,7 @@ class TestRAGSystem(unittest.TestCase):
     def test_14_exact_refusal_message_sanity(self):
         self.assertTrue(EXACT_REFUSAL_MESSAGE.startswith("I can answer only from the uploaded study materials."))
 
-    # Test 15: Mark level detection for exam preparation (1, 2, 5, 8, 16 marks)
+    # Test 15: Mark level detection for exam preparation (1, 2, 5, 7, 10, 12, 14, 16 marks)
     def test_15_mark_level_detection(self):
         from app.rag_engine import RAGEngine
         engine = RAGEngine(vectorstore=MockVectorStore())
@@ -169,10 +169,10 @@ class TestRAGSystem(unittest.TestCase):
         self.assertEqual(engine._detect_mark_level("Explain RAM for 2 marks"), 2)
         self.assertEqual(engine._detect_mark_level("RAM 2 mark level"), 2)
         self.assertEqual(engine._detect_mark_level("Explain OSI model for 5 mark"), 5)
-        self.assertEqual(engine._detect_mark_level("OSI model mark 5"), 5)
-        self.assertEqual(engine._detect_mark_level("Write an 8 mark answer for normalization"), 8)
-        self.assertEqual(engine._detect_mark_level("normalization 8 marks"), 8)
-        self.assertEqual(engine._detect_mark_level("16 mark detailed explanation on Machine Learning"), 16)
+        self.assertEqual(engine._detect_mark_level("OSI model mark 7"), 7)
+        self.assertEqual(engine._detect_mark_level("Write a 10 mark answer for normalization"), 10)
+        self.assertEqual(engine._detect_mark_level("normalization 12 marks"), 12)
+        self.assertEqual(engine._detect_mark_level("14 mark detailed explanation on Machine Learning"), 14)
         self.assertEqual(engine._detect_mark_level("Machine Learning mark 16 level"), 16)
 
     # Test 16: Mark level prompt structure & scaled example requirement
@@ -185,14 +185,14 @@ class TestRAGSystem(unittest.TestCase):
 
         prompt_2m = engine._build_prompt("Define deadlock in 2 mark", "Deadlock occurs when processes hold resources...")
         self.assertIn("2-mark level answer", prompt_2m)
+        self.assertIn("exactly 3 to 5 lines", prompt_2m)
         self.assertIn("chinna example", prompt_2m)
 
         prompt_5m = engine._build_prompt("Explain OS scheduling in 5 marks", "OS scheduling algorithms manage CPU execution...")
         self.assertIn("5-mark level answer", prompt_5m)
 
-        prompt_8m = engine._build_prompt("Explain sorting algorithms in 8 mark", "Sorting algorithms arrange data...")
-        self.assertIn("8-mark level detailed answer", prompt_8m)
-        self.assertIn("periya example", prompt_8m)
+        prompt_10m = engine._build_prompt("Explain sorting algorithms in 10 mark", "Sorting algorithms arrange data...")
+        self.assertIn("10-mark level detailed answer", prompt_10m)
 
         prompt_16m = engine._build_prompt("Explain Neural Networks in 16 mark", "Neural networks consist of layers...")
         self.assertIn("16-mark level comprehensive", prompt_16m)
