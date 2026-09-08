@@ -160,5 +160,43 @@ class TestRAGSystem(unittest.TestCase):
     def test_14_exact_refusal_message_sanity(self):
         self.assertTrue(EXACT_REFUSAL_MESSAGE.startswith("I can answer only from the uploaded study materials."))
 
+    # Test 15: Mark level detection for exam preparation (1, 2, 5, 8, 16 marks)
+    def test_15_mark_level_detection(self):
+        from app.rag_engine import RAGEngine
+        engine = RAGEngine(vectorstore=MockVectorStore())
+        self.assertEqual(engine._detect_mark_level("What is CPU in 1 mark"), 1)
+        self.assertEqual(engine._detect_mark_level("CPU mark 1 answer"), 1)
+        self.assertEqual(engine._detect_mark_level("Explain RAM for 2 marks"), 2)
+        self.assertEqual(engine._detect_mark_level("RAM 2 mark level"), 2)
+        self.assertEqual(engine._detect_mark_level("Explain OSI model for 5 mark"), 5)
+        self.assertEqual(engine._detect_mark_level("OSI model mark 5"), 5)
+        self.assertEqual(engine._detect_mark_level("Write an 8 mark answer for normalization"), 8)
+        self.assertEqual(engine._detect_mark_level("normalization 8 marks"), 8)
+        self.assertEqual(engine._detect_mark_level("16 mark detailed explanation on Machine Learning"), 16)
+        self.assertEqual(engine._detect_mark_level("Machine Learning mark 16 level"), 16)
+
+    # Test 16: Mark level prompt structure & scaled example requirement
+    def test_16_mark_level_prompt_building(self):
+        from app.rag_engine import RAGEngine
+        engine = RAGEngine(vectorstore=MockVectorStore())
+        
+        prompt_1m = engine._build_prompt("What is RAM in 1 mark", "RAM is random access memory.")
+        self.assertIn("1-mark level answer", prompt_1m)
+
+        prompt_2m = engine._build_prompt("Define deadlock in 2 mark", "Deadlock occurs when processes hold resources...")
+        self.assertIn("2-mark level answer", prompt_2m)
+        self.assertIn("chinna example", prompt_2m)
+
+        prompt_5m = engine._build_prompt("Explain OS scheduling in 5 marks", "OS scheduling algorithms manage CPU execution...")
+        self.assertIn("5-mark level answer", prompt_5m)
+
+        prompt_8m = engine._build_prompt("Explain sorting algorithms in 8 mark", "Sorting algorithms arrange data...")
+        self.assertIn("8-mark level detailed answer", prompt_8m)
+        self.assertIn("periya example", prompt_8m)
+
+        prompt_16m = engine._build_prompt("Explain Neural Networks in 16 mark", "Neural networks consist of layers...")
+        self.assertIn("16-mark level comprehensive", prompt_16m)
+        self.assertIn("periya example fulla explain pannanum", prompt_16m)
+
 if __name__ == "__main__":
     unittest.main()
