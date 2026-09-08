@@ -206,10 +206,12 @@ class RAGEngine:
             is_math = self._classify_query(query)[0]
 
             if mark_level is not None:
-                if mark_level >= 12:
-                    k = max(k, 6)
+                if mark_level >= 11:
+                    k = max(k, 8)
                 elif mark_level >= 7:
-                    k = max(k, 5)
+                    k = max(k, 6)
+                elif mark_level >= 3:
+                    k = max(k, 4)
 
             search_queries = [query]
             q_low = query.lower()
@@ -300,12 +302,12 @@ class RAGEngine:
             print(f"[RAG] Retrieved {len(valid_docs)} relevant document chunks for query: '{query[:30]}'")
 
             if mark_level is not None:
-                if mark_level >= 12:
-                    context_limit = 3500
+                if mark_level >= 11:
+                    context_limit = 5000
                 elif mark_level >= 7:
-                    context_limit = 2500
+                    context_limit = 3500
                 elif mark_level >= 3:
-                    context_limit = 1800
+                    context_limit = 2000
                 elif mark_level in (1, 2):
                     context_limit = 1200
                 else:
@@ -326,7 +328,7 @@ class RAGEngine:
 
         strict_guardrail = """Answer the user's question accurately based ONLY on the provided Context below.
 - Rely ONLY on facts explicitly stated in the Context. Do NOT use outside knowledge.
-- Keep the explanation clear, accurate, and structured."""
+- Do NOT fabricate facts. Keep your answer strictly grounded in the Context."""
 
         if mark_level is not None:
             if mark_level == 1:
@@ -337,8 +339,8 @@ Question: {query}
 
 Instructions:
 1. {strict_guardrail}
-2. Provide a 1-mark level answer: extremely direct, exact 1-2 sentence answer based ONLY on the Context.
-3. If applicable, include a short 1-line example.
+2. Provide a 1-mark answer: extremely direct, exact 1-2 sentence definition based ONLY on the Context.
+3. Include a short 1-line example.
 
 Answer:"""
 
@@ -350,8 +352,16 @@ Question: {query}
 
 Instructions:
 1. {strict_guardrail}
-2. Provide a 2-mark level answer: exactly 3 to 5 lines of concise explanation based ONLY on the Context.
-3. Leave a blank line, then write "### Example" followed by a short, small example (chinna example) matching a 2-mark question.
+2. Provide a 2-mark level answer with EXPLICITLY 3 to 5 lines of concise explanation based ONLY on the Context.
+3. You MUST include a dedicated example section at the end.
+
+Format your output EXACTLY as follows:
+
+### Explanation
+[3 to 5 lines of explanation from Context]
+
+### Example
+[Short 1-2 line practical example (chinna example) from Context]
 
 Answer:"""
 
@@ -363,8 +373,16 @@ Question: {query}
 
 Instructions:
 1. {strict_guardrail}
-2. Provide a {mark_level}-mark level answer: structured answer (slightly longer than a 2-mark answer, 5 to 8 lines with 4-6 bullet points/sub-sections) based ONLY on the Context.
-3. Leave a blank line, then write "### Example" followed by a suitable medium-length practical example matching a {mark_level}-mark question.
+2. Provide a {mark_level}-mark level answer (moderately detailed, 5 to 8 lines with 4-6 bullet points) based ONLY on the Context.
+3. You MUST include a dedicated example section at the end.
+
+Format your output EXACTLY as follows:
+
+### {mark_level}-Mark Explanation
+[5 to 8 lines of explanation with 4-6 bullet points from Context]
+
+### Example
+[Medium practical example matching a {mark_level}-mark question from Context]
 
 Answer:"""
 
@@ -376,8 +394,22 @@ Question: {query}
 
 Instructions:
 1. {strict_guardrail}
-2. Provide a {mark_level}-mark level detailed answer: structured exam response (longer and more detailed than a 5-mark answer, covering Definition/Introduction, Core Principles, and Key Steps) based ONLY on the Context.
-3. Leave a blank line, then write "### Example" followed by a detailed multi-step example matching a {mark_level}-mark question.
+2. Provide an extensive, highly detailed {mark_level}-mark level exam answer based ONLY on the Context.
+3. You MUST structure your response with all of the following exact markdown subheadings and elaborate each section fully using the Context:
+
+Format your output EXACTLY as follows:
+
+### 1. Definition & Core Concepts
+[Detailed definition and core principles from Context]
+
+### 2. Key Process & Working Steps
+[In-depth explanation of process, mechanism, and working steps from Context]
+
+### 3. Advantages & Key Features
+[Detailed list of advantages, features, and key points from Context]
+
+### Example
+[Detailed multi-step practical example matching a {mark_level}-mark question from Context]
 
 Answer:"""
 
@@ -389,13 +421,26 @@ Question: {query}
 
 Instructions:
 1. {strict_guardrail}
-2. Provide a full {mark_level}-mark level comprehensive, in-depth answer (significantly longer and more detailed than an 8-mark answer) covering:
-   - Overview & Definition
-   - Core Architecture / Working Mechanism
-   - Detailed Step-by-Step Breakdown
-   - Advantages, Applications & Key Features
-   (Use clear subheadings and detailed explanations based ONLY on the Context).
-3. Leave a blank line, then write "### Example" followed by a large, comprehensive real-world example (periya example fulla explain pannanum) matching a {mark_level}-mark question.
+2. Provide a FULL, EXHAUSTIVE, COMPREHENSIVE {mark_level}-MARK LEVEL EXAM ANSWER based ONLY on the Context.
+3. This is a {mark_level}-mark question: your answer MUST be long, thorough, highly detailed, and fully structured with comprehensive explanations under every heading. Do NOT provide short summaries.
+4. You MUST structure your response with all of the following exact markdown subheadings:
+
+Format your output EXACTLY as follows:
+
+### 1. Overview & Formal Definition
+[Exhaustive introduction, formal definition, and context from Context]
+
+### 2. Architecture & Working Mechanism
+[In-depth, step-by-step breakdown of how it works, protocol/system details, and operations from Context]
+
+### 3. Key Components & Technical Specifications
+[Comprehensive breakdown of all components, frame/packet formats, parameters, and specifications from Context]
+
+### 4. Advantages, Applications & Key Features
+[Detailed explanation of advantages, limitations, use-cases, and real-world deployment from Context]
+
+### Example
+[A large, comprehensive, step-by-step practical real-world example (periya example fulla explain pannanum) based on the Context]
 
 Answer:"""
 
@@ -478,10 +523,12 @@ Answer:"""
         if "### Example" in cleaned:
             return cleaned.strip()
 
-        # Check if context contains an example
-        context_lower = context_text.lower() if context_text else ""
-        if "example" in context_lower or "for instance" in context_lower or "such as" in context_lower:
-            return f"{cleaned}\n\n### Example\nExample supported by uploaded document context."
+        # Extract an example snippet from context if available
+        if context_text:
+            lines = [l.strip() for l in context_text.split('\n') if l.strip()]
+            for line in lines:
+                if any(w in line.lower() for w in ["example", "for instance", "such as", "e.g.", "case"]):
+                    return f"{cleaned}\n\n### Example\n{line}"
 
         return f"{cleaned}\n\n{NO_EXAMPLE_FALLBACK}"
 
