@@ -16,7 +16,10 @@ def create_user(
     name,
     email,
     password,
-    role
+    role,
+    college=None,
+    department=None,
+    year=None
 ):
 
     db = SessionLocal()
@@ -56,7 +59,10 @@ def create_user(
         name=name,
         email=email,
         password=hashed_password,
-        role=role
+        role=role,
+        college=college,
+        department=department,
+        year=year
     )
 
     db.add(new_user)

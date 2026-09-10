@@ -92,6 +92,15 @@ def login_user(
             "name":
                 user.name or user.email.split("@")[0],
 
+            "department":
+                getattr(user, "department", "") or "",
+
+            "year":
+                getattr(user, "year", "") or "",
+
+            "college":
+                getattr(user, "college", "") or "",
+
             "last_login":
                 str(user.last_login)
 

@@ -139,7 +139,13 @@ def signup(
 
     password: str,
 
-    role: str
+    role: str,
+
+    college: str | None = None,
+
+    department: str | None = None,
+
+    year: str | None = None
 
 ):
 
@@ -152,7 +158,13 @@ def signup(
 
         password,
 
-        role
+        role,
+
+        college,
+
+        department,
+
+        year
 
     )
 
@@ -455,14 +467,14 @@ def update_feedback(
 
 
 
-# ==========================
-# PDF UPLOAD
-# ==========================
-
+from fastapi import Form
 
 @app.post("/upload-pdf")
 async def upload_pdf(
-    pdf: UploadFile = File(...)
+    pdf: UploadFile = File(...),
+    department: str = Form("ALL"),
+    year: str = Form("ALL"),
+    uploaded_by: str = Form(None)
 ):
     import fitz  # PyMuPDF
     import re
@@ -480,7 +492,15 @@ async def upload_pdf(
             }
 
         # 2. Filename sanitization
-        safe_filename = re.sub(r'[^a-zA-Z0-9_.-]', '_', os.path.basename(pdf.filename))
+        clean_base = re.sub(r'[^a-zA-Z0-9_.-]', '_', os.path.basename(pdf.filename))
+        # Embed dept/year prefix if not default ALL
+        dept_clean = re.sub(r'[^a-zA-Z0-9]', '', department or "ALL")
+        year_clean = re.sub(r'[^a-zA-Z0-9]', '', year or "ALL")
+
+        if dept_clean != "ALL" and year_clean != "ALL":
+            safe_filename = f"{dept_clean}_{year_clean}_{clean_base}"
+        else:
+            safe_filename = clean_base
 
         content = await pdf.read()
 
@@ -530,13 +550,33 @@ async def upload_pdf(
         except Exception as e:
             print(f"❌ Failed to save to RAG data: {e}")
 
+        # Save record to database if available
+        try:
+            from database.connection import SessionLocal
+            from database.models import PDFDocument
+            db = SessionLocal()
+            existing = db.query(PDFDocument).filter(PDFDocument.filename == safe_filename).first()
+            if not existing:
+                pdf_doc = PDFDocument(
+                    filename=safe_filename,
+                    original_name=pdf.filename,
+                    department=department or "ALL",
+                    year=year or "ALL",
+                    uploaded_by=uploaded_by
+                )
+                db.add(pdf_doc)
+                db.commit()
+            db.close()
+        except Exception as db_err:
+            print(f"⚠️ DB PDF Record note: {db_err}")
+
         # Trigger ingest on RAG service asynchronously
-        def _trigger_rag_ingest(fname: str):
+        def _trigger_rag_ingest(fname: str, dept: str, yr: str):
             try:
                 print(f"⏳ Calling RAG ingest for {fname}...")
                 resp = requests.post(
                     "http://127.0.0.1:8001/api/ingest",
-                    json={"filename": fname},
+                    json={"filename": fname, "department": dept, "year": yr},
                     timeout=300
                 )
                 if resp.status_code == 200:
@@ -547,12 +587,14 @@ async def upload_pdf(
                 print(f"⚠️ RAG ingest background error for {fname}: {e}")
 
         import threading
-        threading.Thread(target=_trigger_rag_ingest, args=(safe_filename,), daemon=True).start()
+        threading.Thread(target=_trigger_rag_ingest, args=(safe_filename, department, year), daemon=True).start()
 
         return {
             "status": True,
-            "message": "PDF Uploaded successfully! Processing into study materials.",
+            "message": f"PDF Uploaded successfully for {department} - {year}!",
             "filename": safe_filename,
+            "department": department,
+            "year": year,
             "pages": page_count,
             "ingested": True
         }
@@ -566,56 +608,79 @@ async def upload_pdf(
         }
 
 
-
-
-
-
-
 # ==========================
 # GET PDFS
 # ==========================
 
 
 @app.get("/pdfs")
-def get_pdfs():
-
-
+def get_pdfs(
+    department: str | None = None,
+    year: str | None = None,
+    role: str | None = None
+):
     if not os.path.exists("uploads"):
-
-
         os.makedirs("uploads")
 
+    all_files = [f for f in os.listdir("uploads") if f.endswith(".pdf")]
 
+    # Query database for department & year metadata if available
+    db_metadata = {}
+    try:
+        from database.connection import SessionLocal
+        from database.models import PDFDocument
+        db = SessionLocal()
+        docs = db.query(PDFDocument).all()
+        for doc in docs:
+            db_metadata[doc.filename] = {
+                "department": doc.department,
+                "year": doc.year,
+                "original_name": doc.original_name
+            }
+        db.close()
+    except Exception as db_err:
+        print(f"⚠️ DB PDF metadata fetch note: {db_err}")
 
-    files = os.listdir("uploads")
+    structured_files = []
+    for fname in all_files:
+        info = db_metadata.get(fname, {})
+        doc_dept = info.get("department")
+        doc_year = info.get("year")
 
+        # Parse department and year from filename if not in DB
+        if not doc_dept or doc_dept == "ALL":
+            parts = fname.split("_")
+            if len(parts) >= 3 and parts[0] in ["CSE", "ECE", "EEE", "MECH", "IT", "CIVIL", "AIDS", "AIML"]:
+                doc_dept = parts[0]
+                doc_year = parts[1]
 
+        doc_dept = doc_dept or "ALL"
+        doc_year = doc_year or "ALL"
 
-    pdf_files=[
+        # Filtering logic for Students: match department & year or ALL
+        if role == "student" or (department and year):
+            user_dept = (department or "").strip().upper()
+            user_yr = (year or "").strip().lower()
 
+            # Skip if document belongs to a different department/year
+            if user_dept and doc_dept != "ALL" and doc_dept.upper() != user_dept:
+                continue
+            if user_yr and doc_year != "ALL" and doc_year.lower() != user_yr:
+                continue
 
-        file
+        structured_files.append({
+            "filename": fname,
+            "department": doc_dept,
+            "year": doc_year
+        })
 
-
-        for file in files
-
-
-        if file.endswith(".pdf")
-
-
-    ]
-
-
+    # Simple string list fallback for backward compatibility
+    file_names = [item["filename"] for item in structured_files]
 
     return {
-
-
-        "status":True,
-
-
-        "files":pdf_files
-
-
+        "status": True,
+        "files": file_names,
+        "details": structured_files
     }
 
 

@@ -55,7 +55,13 @@ function App() {
 
         />
 
+        <Route
 
+          path="/select-role"
+
+          element={<SelectRole />}
+
+        />
 
         <Route
 

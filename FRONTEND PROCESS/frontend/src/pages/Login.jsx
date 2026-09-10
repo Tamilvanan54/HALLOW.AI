@@ -61,6 +61,16 @@ export default function Login() {
           localStorage.setItem("name", email.split("@")[0]);
         }
 
+        if (response.data.department) {
+          localStorage.setItem("department", response.data.department);
+        }
+        if (response.data.year) {
+          localStorage.setItem("year", response.data.year);
+        }
+        if (response.data.college) {
+          localStorage.setItem("college", response.data.college);
+        }
+
         localStorage.removeItem("activeChatId");
 
         navigate("/chat");
@@ -281,7 +291,7 @@ export default function Login() {
 
         <button
           onClick={() =>
-            navigate("/signup")
+            navigate("/select-role")
           }
           style={{
             width: "100%",

@@ -51,6 +51,21 @@ class User(Base):
         nullable=False
     )
 
+    college = Column(
+        String(150),
+        nullable=True
+    )
+
+    department = Column(
+        String(100),
+        nullable=True
+    )
+
+    year = Column(
+        String(50),
+        nullable=True
+    )
+
 
     created_at = Column(
         DateTime,
@@ -280,6 +295,54 @@ class ChatMessage(Base):
     message = Column(
         String(10000),
         nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+
+# =========================
+# PDF DOCUMENT TABLE
+# =========================
+
+class PDFDocument(Base):
+
+    __tablename__ = "pdf_documents"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    filename = Column(
+        String(255),
+        unique=True,
+        nullable=False
+    )
+
+    original_name = Column(
+        String(255),
+        nullable=False
+    )
+
+    department = Column(
+        String(100),
+        nullable=False,
+        default="ALL"
+    )
+
+    year = Column(
+        String(50),
+        nullable=False,
+        default="ALL"
+    )
+
+    uploaded_by = Column(
+        String(150),
+        nullable=True
     )
 
     created_at = Column(
