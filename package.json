@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "cd \"FRONTEND PROCESS/frontend\" && npm run build",
     "rag": "cd \"RAG PROCESS\" && set PYTHONIOENCODING=utf-8 && uvicorn main:app --port 8001",
     "backend": "cd \"BACKEND PROCESS\" && set PYTHONIOENCODING=utf-8 && uvicorn main:app --port 8000",
     "frontend": "cd \"FRONTEND PROCESS/frontend\" && npm run dev",
