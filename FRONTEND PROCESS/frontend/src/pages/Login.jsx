@@ -304,7 +304,7 @@ export default function Login() {
             cursor: "pointer"
           }}
         >
-          Create Account
+          New User (Create Account)
         </button>
 
       </div>
