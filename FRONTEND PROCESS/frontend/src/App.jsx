@@ -6,6 +6,7 @@ import {
 
 
 import Login from "./pages/Login";
+import SelectRole from "./pages/SelectRole";
 import Signup from "./pages/Signup";
 
 
