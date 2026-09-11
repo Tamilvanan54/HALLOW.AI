@@ -611,12 +611,38 @@ Answer:"""
         # Step 7: Build prompt and stream LLM tokens
         formatted_prompt = self._build_prompt(corrected_query, context_text)
 
+        # Dynamic Ollama options based on mark level to allow long 16-mark / 10-mark answers
+        dyn_predict = 1024
+        dyn_ctx = 3072
+        if mark_lvl is not None:
+            if mark_lvl >= 11:
+                dyn_predict = 2500
+                dyn_ctx = 4096
+            elif mark_lvl >= 7:
+                dyn_predict = 1800
+                dyn_ctx = 4096
+            elif mark_lvl >= 3:
+                dyn_predict = 1200
+                dyn_ctx = 3072
+            elif mark_lvl in (1, 2):
+                dyn_predict = 600
+                dyn_ctx = 2048
+
+        dyn_options = dict(self.options)
+        dyn_options["num_predict"] = dyn_predict
+        dyn_options["num_ctx"] = dyn_ctx
+
+        try:
+            active_llm = ChatOllama(model=self.model_name, keep_alive="24h", options=dyn_options)
+        except Exception:
+            active_llm = self.llm
+
         full_output = ""
         t_llm_first = None
         t_llm_start = time.time()
 
         try:
-            for chunk in self.llm.stream(formatted_prompt):
+            for chunk in active_llm.stream(formatted_prompt):
                 token = chunk.content if hasattr(chunk, "content") else str(chunk)
                 if token:
                     if t_llm_first is None:
