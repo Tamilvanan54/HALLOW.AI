@@ -24,61 +24,73 @@ def create_user(
 
     db = SessionLocal()
 
-    existing_user = db.query(User).filter(
-        User.email == email
-    ).first()
+    try:
+        existing_user = db.query(User).filter(
+            User.email == email
+        ).first()
 
-    if existing_user:
+        if existing_user:
+            return {
+                "status": False,
+                "message": "User already exists with this email address!"
+            }
+
+        # Role normalize
+        role = role.lower()
+
+        # Admin account creation block
+        if role == "admin":
+            return {
+                "status": False,
+                "message": "Admin account cannot be created via signup."
+            }
+
+        # Allow only student and staff
+        if role not in ["student", "staff"]:
+            return {
+                "status": False,
+                "message": "Invalid role selected"
+            }
+
+        hashed_password = pwd_context.hash(
+            password
+        )
+
+        new_user = User(
+            name=name,
+            email=email,
+            password=hashed_password,
+            role=role,
+            college=college,
+            department=department,
+            year=year
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        # Audit Log Entry
+        try:
+            write_log(
+                "SIGNUP",
+                email,
+                role
+            )
+        except Exception:
+            pass
+
         return {
-            "status": False,
-            "message": "User already exists"
+            "status": True,
+            "message": "User Created Successfully"
         }
 
-    # Role normalize
-    role = role.lower()
-
-    # Admin account creation block
-    if role == "admin":
+    except Exception as e:
+        db.rollback()
+        print(f"❌ SIGNUP ERROR: {e}")
         return {
             "status": False,
-            "message": "Admin account cannot be created"
+            "message": f"Signup error: {str(e)}"
         }
-
-    # Allow only student and staff
-    if role not in ["student", "staff"]:
-        return {
-            "status": False,
-            "message": "Invalid role"
-        }
-
-    hashed_password = pwd_context.hash(
-        password
-    )
-
-    new_user = User(
-        name=name,
-        email=email,
-        password=hashed_password,
-        role=role,
-        college=college,
-        department=department,
-        year=year
-    )
-
-    db.add(new_user)
-
-    db.commit()
-
-    db.refresh(new_user)
-
-    # Audit Log Entry
-    write_log(
-        "SIGNUP",
-        email,
-        role
-    )
-
-    return {
-        "status": True,
-        "message": "User Created Successfully"
-    }
+    finally:
+        db.close()
