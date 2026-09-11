@@ -52,7 +52,12 @@ import requests
 
 
 
+from create_tables import run_migrations
+
 app = FastAPI()
+
+# Auto-migrate database tables & columns on startup
+run_migrations()
 
 
 
